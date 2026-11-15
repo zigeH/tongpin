@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "一起搭",
+    "slug": "tongpin-blindbox",
+    "scheme": "tongpin",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.zigeh.tongpin"
+    },
+    "android": {
+      "package": "com.zigeh.tongpin",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "选一张照片做成 3D 盲盒",
+          "cameraPermission": "拍一样东西做成 3D 盲盒"
+        }
+      ]
+    ]
+  }
+}
