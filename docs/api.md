@@ -87,3 +87,7 @@ stateDiagram-v2
 | `INVALID_INPUT` | 参数格式不对（prompt 为空、cameraPose 缺字段、文件类型不对、认领自己的盒子） |
 
 参数类型不对（比如 `kind: "bogus"`）会在校验层被拒，抛的是 Convex 的 `ArgumentValidationError`，不带 code。
+
+## 后端环境变量
+
+- `EDIT_FAL_CUTOUT`：设为 `1` 时，一句话改图的结果会再用 fal 去一次背景（需要 `FAL_KEY`）；默认不设，直接存 OpenAI 返回的透明 PNG。

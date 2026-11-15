@@ -89,15 +89,19 @@ export const run = internalAction({
         const extra = box.extraPhotoId ? await ctx.storage.get(box.extraPhotoId) : null;
         const edited = await openaiEdit(buildEditPrompt(box.prompt ?? "", extra !== null), extra ? [snapshot, extra] : [snapshot]);
         const rawId = await ctx.storage.store(edited);
-        const rawUrl = await ctx.storage.getUrl(rawId);
-        if (rawUrl === null) throw new Error("改图结果存储失败");
-        let cutout: Blob;
-        try {
-          cutout = await removeBackground(rawUrl);
-        } finally {
-          await ctx.storage.delete(rawId);
+        if (process.env.EDIT_FAL_CUTOUT !== "1") {
+          editedImageId = rawId;
+        } else {
+          const rawUrl = await ctx.storage.getUrl(rawId);
+          if (rawUrl === null) throw new Error("改图结果存储失败");
+          let cutout: Blob;
+          try {
+            cutout = await removeBackground(rawUrl);
+          } finally {
+            await ctx.storage.delete(rawId);
+          }
+          editedImageId = await ctx.storage.store(cutout);
         }
-        editedImageId = await ctx.storage.store(cutout);
       }
     } catch (e) {
       await ctx.runMutation(internal.edit.fail, { boxId, reason: e instanceof Error ? e.message : String(e) });
