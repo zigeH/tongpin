@@ -7,7 +7,7 @@ export type MeshyTask = {
   status: "PENDING" | "IN_PROGRESS" | "SUCCEEDED" | "FAILED" | "CANCELED";
   progress?: number;
   image_urls?: string[];
-  model_urls?: { glb?: string };
+  model_urls?: { glb?: string; usdz?: string };
   task_error?: { message?: string };
 };
 
@@ -36,6 +36,7 @@ export const VIEW_ANGLES = {
   back: "Exact back view, camera directly behind the toy at eye level, showing the round back, the ears and any accessory on the head.",
 };
 
+// 备用：单独的 cozy 风格图。当前流程不用（实测正面三视图当风格参考效果更好），留着做对比实验。
 export const COZY_STYLE = (subject: string) =>
   `Cute 3D render of this exact stuffed animal, high-end cozy plush toy photography. ` +
   `Chibi proportions: big round head, small chubby body, rounded smooth edges, soft puffy silhouette, stuffed volume. ` +

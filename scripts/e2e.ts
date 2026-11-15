@@ -15,6 +15,7 @@ export const EDIT_FIELDS = [
   "extraPhotoUrl",
   "editedImageUrl",
   "editedModelUrl",
+  "editedUsdzUrl",
   "receiverNote",
   "editError",
   "sealedAt",
@@ -281,6 +282,18 @@ export function storySteps(client: ConvexHttpClient): Step<Ctx>[] {
         const missingInGet = OPENED_FIELDS.filter((f) => !presentFields(view, [f]).length);
         check(missingInGet.length === 0, `开盒后 boxes.get 缺少：${missingInGet.join(", ")}`);
         ctx.opened = true;
+      },
+    },
+    {
+      name: "7b. 开盒合影：A 存一张合影，boxes.shots 能取回；旁人 C 不能存",
+      needs: ["boxId", "userA", "opened"],
+      run: async (ctx) => {
+        const imageStorageId = await upload("E2E_PHOTO");
+        await client.mutation(api.boxes.saveShot, { boxId: ctx.boxId!, userId: ctx.userA!, imageStorageId });
+        const shots = await client.query(api.boxes.shots, { boxId: ctx.boxId! });
+        check(shots.length === 1 && /^https?:\/\//.test(shots[0].url), `shots 返回不对：${JSON.stringify(shots)}`);
+        const stranger = await client.mutation(api.users.register, { nickname: "e2e-路人" });
+        await expectCode(client.mutation(api.boxes.saveShot, { boxId: ctx.boxId!, userId: stranger.userId, imageStorageId }), "NOT_RECEIVER");
       },
     },
     {

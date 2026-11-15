@@ -24,28 +24,29 @@ export async function attachToBox(
   boxId: Id<"boxes">,
   kind: ModelKind,
   modelStorageId: Id<"_storage">,
+  usdzStorageId?: Id<"_storage">,
 ) {
   const box = await ctx.db.get(boxId);
   if (box === null) fail("BOX_NOT_FOUND");
   assertAttachable(box, kind);
   if (kind === "original") {
-    await ctx.db.patch(boxId, { modelId: modelStorageId, status: "ready", editError: undefined });
+    await ctx.db.patch(boxId, { modelId: modelStorageId, modelUsdzId: usdzStorageId, status: "ready", editError: undefined });
   } else {
-    await ctx.db.patch(boxId, { editedModelId: modelStorageId, status: "edited" });
+    await ctx.db.patch(boxId, { editedModelId: modelStorageId, editedUsdzId: usdzStorageId, status: "edited" });
   }
 }
 
 export const attach = internalMutation({
-  args: { boxId: v.id("boxes"), kind: modelKind, modelStorageId: v.id("_storage") },
-  handler: async (ctx, { boxId, kind, modelStorageId }) => {
-    await attachToBox(ctx, boxId, kind, modelStorageId);
+  args: { boxId: v.id("boxes"), kind: modelKind, modelStorageId: v.id("_storage"), usdzStorageId: v.optional(v.id("_storage")) },
+  handler: async (ctx, { boxId, kind, modelStorageId, usdzStorageId }) => {
+    await attachToBox(ctx, boxId, kind, modelStorageId, usdzStorageId);
     return null;
   },
 });
 
 export const download = internalAction({
-  args: { boxId: v.id("boxes"), kind: modelKind, url: v.string() },
-  handler: async (ctx, { boxId, kind, url }) => {
+  args: { boxId: v.id("boxes"), kind: modelKind, url: v.string(), usdzUrl: v.optional(v.string()) },
+  handler: async (ctx, { boxId, kind, url, usdzUrl }) => {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`下载 3D 失败：HTTP ${res.status} ${url}`);
     const blob = new Blob([await res.arrayBuffer()], { type: "model/gltf-binary" });
@@ -57,10 +58,22 @@ export const download = internalAction({
       console.error("GLB 压缩失败，保存原文件", e);
     }
     if (modelStorageId !== originalId) await ctx.storage.delete(originalId);
+    // usdz 只给 iOS 真 AR 用；下载失败不影响 glb
+    let usdzStorageId: Id<"_storage"> | undefined;
+    if (usdzUrl) {
+      try {
+        const u = await fetch(usdzUrl);
+        if (!u.ok) throw new Error(`HTTP ${u.status}`);
+        usdzStorageId = await ctx.storage.store(new Blob([await u.arrayBuffer()], { type: "model/vnd.usdz+zip" }));
+      } catch (e) {
+        console.error("下载 usdz 失败，跳过", e);
+      }
+    }
     try {
-      await ctx.runMutation(internal.kara.attach, { boxId, kind, modelStorageId });
+      await ctx.runMutation(internal.kara.attach, { boxId, kind, modelStorageId, ...(usdzStorageId ? { usdzStorageId } : {}) });
     } catch (e) {
       await ctx.storage.delete(modelStorageId);
+      if (usdzStorageId) await ctx.storage.delete(usdzStorageId);
       throw e;
     }
     return null;

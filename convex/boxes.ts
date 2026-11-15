@@ -8,3 +8,4 @@ export { seal } from "./impl/boxes/seal";
 export { open } from "./impl/boxes/open";
 export { share } from "./impl/boxes/share";
 export { remixBack } from "./impl/boxes/remixBack";
+export { saveShot, shots } from "./impl/boxes/shots";

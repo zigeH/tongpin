@@ -29,6 +29,8 @@ export default defineSchema({
     photoId: v.id("_storage"),
     cutoutId: v.optional(v.id("_storage")),
     modelId: v.optional(v.id("_storage")),
+    // iOS AR Quick Look 用的 usdz（Meshy 一起导出；没有时为空）
+    modelUsdzId: v.optional(v.id("_storage")),
     // B 的改造
     snapshotId: v.optional(v.id("_storage")),
     sceneShotId: v.optional(v.id("_storage")),
@@ -37,6 +39,7 @@ export default defineSchema({
     extraPhotoId: v.optional(v.id("_storage")),
     editedImageId: v.optional(v.id("_storage")),
     editedModelId: v.optional(v.id("_storage")),
+    editedUsdzId: v.optional(v.id("_storage")),
     editError: v.optional(v.string()),
     receiverNote: v.optional(v.string()),
     sealedAt: v.optional(v.number()),
@@ -45,6 +48,10 @@ export default defineSchema({
     .index("by_code", ["code"])
     .index("by_sender", ["senderId"])
     .index("by_receiver", ["receiverId"]),
+  // 开盒后和 3D 的合影（App 内相机 + 3D 叠加合成的 JPEG）
+  shots: defineTable({
+    boxId: v.id("boxes"), userId: v.id("users"), imageId: v.id("_storage"), createdAt: v.number(),
+  }).index("by_box", ["boxId"]),
   exports: defineTable({
     boxId: v.id("boxes"), videoId: v.id("_storage"), createdAt: v.number(),
   }).index("by_box", ["boxId"]),
