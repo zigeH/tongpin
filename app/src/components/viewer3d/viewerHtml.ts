@@ -97,7 +97,11 @@ new GLTFLoader().load(
       controls.target.fromArray(pose.target);
       camera.fov = pose.fov;
     } else {
-      camera.position.set(0, size * 0.25, size * 1.15);
+      const radius = size / 2;
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+      const distance = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 0.92;
+      camera.position.set(0, distance * 0.22, distance).setLength(distance);
       controls.target.set(0, 0, 0);
     }
     camera.updateProjectionMatrix();

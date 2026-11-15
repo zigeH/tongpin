@@ -97,7 +97,7 @@ export function Polaroid({
       <View style={[styles.polaroidPhoto, { height: size }]}>
         {uri ? <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /> : null}
       </View>
-      <Text style={styles.polaroidCaption} numberOfLines={1}>
+      <Text style={[styles.polaroidCaption, size < 80 && styles.polaroidCaptionSmall]} numberOfLines={1}>
         {caption ?? " "}
       </Text>
     </View>
@@ -240,5 +240,6 @@ const styles = StyleSheet.create({
   },
   polaroidPhoto: { backgroundColor: STAGE_BG, borderRadius: 2, overflow: "hidden" },
   polaroidCaption: { fontFamily: fonts.hand, fontSize: 19, lineHeight: 24, color: colors.ink, textAlign: "center" },
+  polaroidCaptionSmall: { fontFamily: fonts.heavy, fontSize: 9, lineHeight: 14 },
   corner: { position: "absolute" },
 });

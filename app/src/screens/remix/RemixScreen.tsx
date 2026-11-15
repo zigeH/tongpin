@@ -1,6 +1,6 @@
 import { useMutation } from "convex/react";
 import { router, Stack } from "expo-router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import {
   Alert,
   Animated,
@@ -46,7 +46,7 @@ import {
 // Serves both a claimed gift box and a remixBack relay box (sender = the other person).
 
 const SUGGESTIONS = ["make it gold", "add a tiny hat", "turn it into a cake", "space version", "make it fluffy"];
-const EDITING_LINES = ["Mixing the paint…", "Adding a little magic…", "Polishing the corners…", "Almost there…"];
+const EDITING_LINES = ["Mixing paint…", "Adding magic…", "Polishing…", "Almost there…"];
 
 type Step = "angle" | "prompt";
 
@@ -71,7 +71,7 @@ export function RemixScreen({ box }: { box: BoxView }) {
   }, [box.status]);
 
   const other = { name: box.senderNickname || "your friend", color: box.senderColor };
-  const close = () => (router.canGoBack() ? router.back() : router.replace("/"));
+  const close = () => router.dismissTo("/");
 
   const phase = sending
     ? "sending"
@@ -106,7 +106,7 @@ export function RemixScreen({ box }: { box: BoxView }) {
     await new Promise((resolve) => setTimeout(resolve, 2300));
     try {
       await seal({ boxId: box._id, userId, receiverNote: note.trim() });
-      router.replace("/");
+      router.dismissTo("/");
     } catch (error) {
       setSending(false);
       showError(error);
@@ -318,6 +318,7 @@ function PromptStep({
 }) {
   const { s } = useScale();
   const { run } = useTask();
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const trimmed = prompt.trim();
 
   const addPhoto = () =>
@@ -330,7 +331,7 @@ function PromptStep({
 
   return (
     <Enter>
-      <ScrollView style={styles.flex} contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         <TopBar left={{ label: "Back", onPress: onBack }} name={other.name} color={other.color} label={`From ${other.name}`} step={1} />
         <Title sub="One sentence. Bobo does the rest.">What should it become?</Title>
         <View style={[styles.photoRow, { marginTop: s(18) }]}>
@@ -363,6 +364,7 @@ function PromptStep({
             multiline
             maxLength={200}
             style={styles.promptInput}
+            onFocus={() => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 250)}
             accessibilityLabel="Remix prompt"
           />
           <BodyText size={12} weight="bold" color={colors.muted} style={styles.counter}>
@@ -371,7 +373,7 @@ function PromptStep({
         </RoughCard>
         <View style={styles.suggestions}>
           {SUGGESTIONS.map((text) => (
-            <Chip key={text} label={text} onPress={() => onPrompt(text)} active={trimmed === text} style={styles.suggestion} />
+            <Chip key={text} label={text} onPress={() => onPrompt(text)} active={trimmed === text} style={trimmed === text ? styles.suggestionActive : styles.suggestion} />
           ))}
         </View>
         {box.status === "claimed" && box.editError ? (
@@ -464,11 +466,12 @@ function ResultStep({
 }) {
   const { s } = useScale();
   const [view, setView] = useState<"3d" | "picture">(box.editedModelUrl ? "3d" : "picture");
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const ready = note.trim().length > 0;
 
   return (
     <Enter>
-      <ScrollView style={styles.flex} contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         <TopBar left={{ label: "Close", onPress: onClose }} name={other.name} color={other.color} label={`For ${other.name}`} step={2} />
         <Title sub={box.prompt ? `“${box.prompt}”` : undefined}>Ta-da!</Title>
         <View style={[styles.resultCard, { marginTop: s(16) }]}>
@@ -487,6 +490,11 @@ function ResultStep({
                 <StageBackdrop width={s(350)} height={s(280)} />
                 <ModelViewer modelUrl={box.editedModelUrl} autoRotate style={StyleSheet.absoluteFill} />
                 <Chip label="Drag to spin" style={styles.stageChip} />
+                {box.editedImageUrl ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel="Show the remixed picture" onPress={() => setView("picture")} style={styles.thumb}>
+                    <Polaroid uri={box.editedImageUrl} caption="photo" size={48} rotate={5} />
+                  </Pressable>
+                ) : null}
               </>
             ) : box.editedImageUrl ? (
               <Image source={{ uri: box.editedImageUrl }} style={StyleSheet.absoluteFill} resizeMode="contain" accessibilityLabel="Remixed picture" />
@@ -502,6 +510,7 @@ function ResultStep({
               multiline
               maxLength={200}
               style={styles.noteInput}
+              onFocus={() => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 250)}
               accessibilityLabel={`Note for ${other.name}`}
             />
           </View>
@@ -616,6 +625,7 @@ const styles = StyleSheet.create({
   counter: { textAlign: "right" },
   suggestions: { flexDirection: "row", flexWrap: "wrap", marginTop: 12, gap: 8 },
   suggestion: { backgroundColor: colors.cream, paddingVertical: 6, paddingHorizontal: 12 },
+  suggestionActive: { backgroundColor: colors.ink, paddingVertical: 6, paddingHorizontal: 12 },
   errorBox: { marginTop: 12, padding: 12, borderRadius: 16, borderWidth: 2, borderColor: colors.danger, backgroundColor: colors.white },
   actionRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   boboSlot: { width: 96, height: 96, marginLeft: -8 },
@@ -636,6 +646,7 @@ const styles = StyleSheet.create({
   segment: { flexDirection: "row", gap: 6 },
   segmentChip: { paddingHorizontal: 14 },
   tryAgain: { minHeight: 32, justifyContent: "center" },
+  thumb: { position: "absolute", right: 10, bottom: 8 },
   resultStage: { backgroundColor: STAGE_BG, borderTopWidth: stroke.width, borderBottomWidth: stroke.width, borderColor: colors.ink },
   noteBox: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, gap: 2 },
   noteInput: { fontFamily: fonts.hand, fontSize: 24, lineHeight: 26, color: colors.ink, minHeight: 56, textAlignVertical: "top", padding: 0 },
