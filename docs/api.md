@@ -19,16 +19,16 @@
 | `files.generateUploadUrl` | mutation | 无 | `string`（上传地址） |
 | `boxes.create` | mutation | `userId`, `photoStorageId`, `senderNote?: string` | `{ boxId }` |
 | `boxes.get` | query | `boxId`, `viewerId?: userId` | `BoxView` |
-| `boxes.inbox` | query | `userId` | `{ received: (BoxView & { action })[]; sent: BoxView[] }` |
+| `boxes.inbox` | query | `userId`（不存在报 `USER_NOT_FOUND`） | `{ received: (BoxView & { action })[]; sent: BoxView[] }` |
 | `boxes.claim` | mutation | `code: string`, `userId` | `{ boxId }` |
 | `boxes.submitEdit` | mutation | `boxId`, `userId`, `snapshotStorageId`, `sceneShotStorageId?`, `cameraPose: CameraPose`, `prompt: string`（1–200 字）, `extraPhotoStorageId?` | `null` |
 | `boxes.seal` | mutation | `boxId`, `userId`, `receiverNote: string` | `null` |
 | `boxes.open` | mutation | `boxId`, `userId` | `BoxView` |
 | `boxes.reply` | mutation | `boxId`（旧盒子）, `userId`, `senderNote?: string` | `{ boxId }`（新盒子） |
-| `boxes.attachModel` | mutation | `boxId`, `kind: "original" \| "edited"`, `modelStorageId?` 或 `modelUrl?`（二选一）, `token?` | `null` |
+| `boxes.attachModel` | mutation | `boxId`, `kind: "original" \| "edited"`, `modelStorageId?` 或 `modelUrl?`（二选一）, `token?`（设了 `KARA_TOKEN` 时必须一致，否则报 `INVALID_INPUT`） | `null`（传 `modelUrl` 时是异步的：返回后后台下载再写回） |
 | `exports.save` | mutation | `boxId`, `storageId`（开箱视频） | `{ exportId }` |
 | `kara.pending` | query | 无 | `{ boxId, kind, imageUrl }[]`（给 Kara 轮询） |
-| `seed.demo` | action | 可选素材 storageId：`photoId`, `cutoutId`, `modelId`, `snapshotId`, `sceneShotId`, `editedImageId`, `editedModelId` | `{ userAId, userBId, readyBox: { boxId, code }, sealedBox: { boxId, code } }` |
+| `seed.demo` | action | 可选素材 storageId：`photoId`, `cutoutId`, `modelId`, `snapshotId`, `sceneShotId`, `editedImageId`, `editedModelId`, `extraPhotoId` | `{ userAId, userBId, readyBox: { boxId, code }, sealedBox: { boxId, code } }` |
 
 `boxes.attachModel`、`kara.pending` 给 Kara 用，`seed.demo` 给演示脚本用，App 不需要调。
 
