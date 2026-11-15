@@ -49,7 +49,14 @@ export const download = internalAction({
     const res = await fetch(url);
     if (!res.ok) throw new Error(`下载 3D 失败：HTTP ${res.status} ${url}`);
     const blob = new Blob([await res.arrayBuffer()], { type: "model/gltf-binary" });
-    const modelStorageId = await ctx.storage.store(blob);
+    const originalId = await ctx.storage.store(blob);
+    let modelStorageId = originalId;
+    try {
+      modelStorageId = await ctx.runAction(internal.glbCompress.compress, { storageId: originalId });
+    } catch (e) {
+      console.error("GLB 压缩失败，保存原文件", e);
+    }
+    if (modelStorageId !== originalId) await ctx.storage.delete(originalId);
     try {
       await ctx.runMutation(internal.kara.attach, { boxId, kind, modelStorageId });
     } catch (e) {
