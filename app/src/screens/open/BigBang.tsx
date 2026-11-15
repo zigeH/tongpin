@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 import { Ball, Core, DEBRIS, Flash, Orbit, Ring, Stars, Twinkle, type DebrisPiece } from "./art";
-import { C } from "./theme";
+import { colors as C } from "../../theme";
 import { T, ease, loop, track } from "./timeline";
 
 type Clock = { now: SharedValue<number>; tapAt: SharedValue<number> };

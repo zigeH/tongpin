@@ -1,7 +1,4 @@
-import { Gaegu_700Bold } from "@expo-google-fonts/gaegu";
-import { Nunito_500Medium, Nunito_700Bold, Nunito_800ExtraBold } from "@expo-google-fonts/nunito";
 import { useMutation } from "convex/react";
-import { useFonts } from "expo-font";
 import { Stack, router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -19,7 +16,8 @@ import { api, type BoxView } from "../../lib/backend";
 import { useProfile } from "../../lib/session";
 import { useTask } from "../../lib/useTask";
 import { BigBang } from "./BigBang";
-import { C, CANVAS_WIDTH, F } from "./theme";
+import { colors as C, DESIGN_WIDTH as CANVAS_WIDTH, fonts as F, radii } from "../../theme";
+import { Button, NamePill, RoughCard } from "../../components/ui";
 import { LONG_AGO, T, ease, track } from "./timeline";
 
 // How long the edited picture stays over the 3D viewer after it mounts, until the viewer reports loading.
@@ -32,7 +30,6 @@ export function OpenScreen({ box }: { box: BoxView }) {
   const remixBack = useMutation(api.boxes.remixBack);
   const { busy, run } = useTask();
   const reduceMotion = useReducedMotion();
-  const [fontsLoaded] = useFonts({ Gaegu_700Bold, Nunito_500Medium, Nunito_700Bold, Nunito_800ExtraBold });
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
@@ -111,8 +108,6 @@ export function OpenScreen({ box }: { box: BoxView }) {
   }));
   const cover = useAnimatedStyle(() => ({ opacity: imageCover.value }));
 
-  if (!fontsLoaded) return <View style={styles.root} />;
-
   const scale = width / CANVAS_WIDTH;
   const canvasHeight = height / scale;
   const headerTop = Math.max(54, insets.top / scale + 4);
@@ -140,12 +135,7 @@ export function OpenScreen({ box }: { box: BoxView }) {
           <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.close}>
             <Text style={styles.closeText}>Close</Text>
           </Pressable>
-          <View style={styles.from}>
-            <View style={[styles.avatar, { backgroundColor: view.receiverColor ?? C.sun }]}>
-              <Text style={styles.avatarText}>{remixer.slice(0, 1).toUpperCase()}</Text>
-            </View>
-            <Text style={styles.fromText}>From {remixer}</Text>
-          </View>
+          <NamePill name={remixer} color={view.receiverColor} label={`From ${remixer}`} />
           <View style={styles.headerSpacer} />
         </View>
 
@@ -167,28 +157,19 @@ export function OpenScreen({ box }: { box: BoxView }) {
           pointerEvents={phase === "opened" ? "auto" : "none"}
           onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
         >
-          {view.receiverNote ? <Text style={styles.note}>“{view.receiverNote}”</Text> : null}
-          {view.prompt ? (
-            <Text style={styles.remixLine}>
-              {remixer}'s remix: {view.prompt}
-            </Text>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={sendBack}
-            style={({ pressed }) => [styles.primary, (pressed || busy) && styles.pressed]}
-          >
-            {busy ? <ActivityIndicator color={C.paper} /> : <Text style={styles.primaryText}>Remix it and send it back</Text>}
-          </Pressable>
-          <View style={styles.links}>
-            <Pressable accessibilityRole="button" onPress={play} style={styles.link}>
-              <Text style={styles.linkText}>Replay</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={shareUnboxing} style={styles.link}>
-              <Text style={styles.linkText}>Share the unboxing</Text>
-            </Pressable>
-          </View>
+          <RoughCard radius={radii.cardLg} strokeWidth={2.5} style={styles.cardBody}>
+            {view.receiverNote ? <Text style={styles.note}>“{view.receiverNote}”</Text> : null}
+            {view.prompt ? (
+              <Text style={styles.remixLine}>
+                {remixer}'s remix: {view.prompt}
+              </Text>
+            ) : null}
+            <Button title="Remix it and send it back" busy={busy} onPress={sendBack} style={styles.primary} />
+            <View style={styles.links}>
+              <Button kind="ghost" title="Replay" onPress={play} />
+              <Button kind="ghost" title="Share the unboxing" onPress={shareUnboxing} />
+            </View>
+          </RoughCard>
         </Animated.View>
       </View>
     </View>
@@ -210,29 +191,6 @@ const styles = StyleSheet.create({
   },
   close: { height: 44, justifyContent: "center", width: 60 },
   closeText: { fontFamily: F.bold, fontSize: 16, color: C.ink },
-  from: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 5,
-    paddingLeft: 6,
-    paddingRight: 12,
-    backgroundColor: C.white,
-    borderWidth: 2.5,
-    borderColor: C.ink,
-    borderRadius: 999,
-  },
-  avatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: C.ink,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontFamily: F.black, fontSize: 11, color: C.ink },
-  fromText: { fontFamily: F.black, fontSize: 14, color: C.ink },
   headerSpacer: { width: 60 },
   titleBlock: { position: "absolute", left: 24, right: 24, alignItems: "center", zIndex: 2 },
   title: { fontFamily: F.hand, fontSize: 42, lineHeight: 42, color: C.ink, textAlign: "center" },
@@ -240,34 +198,10 @@ const styles = StyleSheet.create({
   prizeInner: { flex: 1, alignItems: "center", justifyContent: "center" },
   viewer: { ...StyleSheet.absoluteFill, height: undefined, borderRadius: 0, backgroundColor: "transparent" },
   prizeImage: { width: "100%", height: "100%" },
-  card: {
-    position: "absolute",
-    left: 12,
-    right: 12,
-    bottom: 12,
-    zIndex: 7,
-    backgroundColor: C.white,
-    borderWidth: 2.5,
-    borderColor: C.ink,
-    borderRadius: 28,
-    paddingTop: 22,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    gap: 10,
-  },
+  card: { position: "absolute", left: 12, right: 12, bottom: 12, zIndex: 7 },
+  cardBody: { paddingTop: 22, paddingHorizontal: 20, paddingBottom: 14, gap: 10 },
   note: { fontFamily: F.hand, fontSize: 30, lineHeight: 34.5, color: C.ink },
   remixLine: { fontFamily: F.body, fontSize: 13, color: C.muted },
-  primary: {
-    marginTop: 6,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: C.ink,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pressed: { opacity: 0.8 },
-  primaryText: { fontFamily: F.black, fontSize: 17, color: C.paper },
-  links: { flexDirection: "row", justifyContent: "center", gap: 28 },
-  link: { height: 40, justifyContent: "center" },
-  linkText: { fontFamily: F.bold, fontSize: 14, color: C.muted },
+  primary: { marginTop: 6 },
+  links: { flexDirection: "row", justifyContent: "center", gap: 4 },
 });

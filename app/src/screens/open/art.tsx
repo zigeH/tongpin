@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Rect, Stop } from "react-native-svg";
-import { C } from "./theme";
+import { colors as C } from "../../theme";
 
 // Static artwork from the 4-open design; positions and sizes are in 390-wide canvas points.
 
@@ -111,7 +111,7 @@ export const DEBRIS: DebrisPiece[] = [
     </Svg>
   ) },
   { x: -120, y: -60, r: 140, s: 1, w: 36, h: 32, art: (
-    <Svg width={36} height={32} viewBox="0 0 36 32" fill={C.pink} stroke={C.ink} strokeWidth={3} strokeLinejoin="round">
+    <Svg width={36} height={32} viewBox="0 0 36 32" fill={"#E8909A"} stroke={C.ink} strokeWidth={3} strokeLinejoin="round">
       <Path d="M18 29C4 20 2 12 6 7s10-4 12 2c2-6 8-7 12-2s2 13-12 22z" />
     </Svg>
   ) },
