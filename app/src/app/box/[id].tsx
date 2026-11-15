@@ -25,8 +25,9 @@ export default function BoxScreen() {
   const isReceiver = box.receiverId === userId && box.status !== "ready";
 
   let body;
-  if (box.status === "opened") body = <ResultView box={box} canReply={isSender} />;
-  else if (isSender) body = box.status === "sealed" ? <OpenView box={box} /> : <SenderWaitingView box={box} />;
+  if (isSender && (box.status === "sealed" || box.status === "opened")) body = <OpenView box={box} />;
+  else if (box.status === "opened") body = <ResultView box={box} canReply={false} />;
+  else if (isSender) body = <SenderWaitingView box={box} />;
   else if (isReceiver) body = box.status === "sealed" ? <ResultView box={box} canReply={false} /> : <EditView box={box} />;
   else body = <ClaimView box={box} />;
 
