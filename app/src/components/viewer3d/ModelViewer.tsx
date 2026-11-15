@@ -28,6 +28,9 @@ type Props = {
   interactive?: boolean;
   initialPose?: CameraPose;
   onLoaded?: () => void;
+  // Built-in loading overlay (bouncing dots + label). Pass false to draw your own.
+  showLoading?: boolean;
+  loadingLabel?: string;
 };
 
 const PNG_PREFIX = "data:image/png;base64,";
@@ -42,6 +45,8 @@ export function ModelViewer({
   interactive = true,
   initialPose,
   onLoaded,
+  showLoading = true,
+  loadingLabel = "Loading 3D…",
 }: Props) {
   const webView = useRef<WebView<object>>(null);
   const pending = useRef<{ resolve: (s: Snapshot) => void; reject: (e: Error) => void } | null>(null);
@@ -107,7 +112,7 @@ export function ModelViewer({
         bounces={false}
         style={[styles.webView, state !== "loaded" && styles.hidden]}
       />
-      {state === "loading" ? <LoadingDots /> : null}
+      {state === "loading" && showLoading ? <LoadingDots label={loadingLabel} /> : null}
       {state === "error" ? (
         <View style={styles.overlay}>
           <Text style={styles.overlayTitle}>3D got lost on the way</Text>
@@ -120,7 +125,7 @@ export function ModelViewer({
   );
 }
 
-function LoadingDots() {
+function LoadingDots({ label }: { label: string }) {
   const values = useRef(DOT_COLORS.map(() => new Animated.Value(0))).current;
   useEffect(() => {
     const step = 160;
@@ -144,7 +149,7 @@ function LoadingDots() {
           <Animated.View key={color} style={[styles.dot, { backgroundColor: color, transform: [{ translateY: values[i] }] }]} />
         ))}
       </View>
-      <Text style={styles.overlayText}>Unpacking 3D…</Text>
+      <Text style={styles.overlayText}>{label}</Text>
     </View>
   );
 }
