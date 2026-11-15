@@ -8,9 +8,10 @@ import { api, type BoxView, type Id } from "../../lib/backend";
 import { useProfile } from "../../lib/session";
 import { useTask } from "../../lib/useTask";
 import { FriendPicker } from "./FriendPicker";
-import { Avatar, Card, Header, Pill, PrimaryButton, StageBackdrop, TrottingBobo } from "./parts";
+import { Button, RoughCard, Avatar } from "../../components/ui";
+import { Header, Pill, StageBackdrop, TrottingBobo, stageColors } from "./parts";
 import { SentScreen } from "./SentScreen";
-import { colors, fonts, STROKE, useScale } from "./theme";
+import { colors, fonts, stroke, useScale } from "../../theme";
 
 export function inviteMessage(code: string) {
   return `I packed a little 3D moment for you! Open 一起搭 and enter box code ${code} to remix it.`;
@@ -18,7 +19,7 @@ export function inviteMessage(code: string) {
 
 // 设计稿 2-send：3D 预览 + caption（senderNote）+ 好友多选（users.friends）+ Invite（系统分享盒子码）→ boxes.share
 export function ShareScreen({ box }: { box: BoxView }) {
-  const s = useScale();
+  const { s } = useScale();
   const insets = useSafeAreaInsets();
   const profile = useProfile();
   const friends = useQuery(api.users.friends, { userId: profile.userId });
@@ -60,7 +61,7 @@ export function ShareScreen({ box }: { box: BoxView }) {
     <View style={[styles.screen, { paddingHorizontal: s(18), paddingBottom: Math.max(insets.bottom, s(20)) }]}>
       <Header title="Share your moment" left="Cancel" onLeft={() => router.dismissTo("/")} />
 
-      <Card style={{ marginTop: s(10) }}>
+      <RoughCard strokeWidth={stroke.width} style={{ marginTop: s(10) }}>
         <View style={[styles.cardHead, { paddingHorizontal: s(14), paddingVertical: s(10), gap: s(10) }]}>
           <Avatar name={profile.nickname} color={box.senderColor} />
           <View style={styles.flex}>
@@ -78,7 +79,7 @@ export function ShareScreen({ box }: { box: BoxView }) {
           )}
           <Pill label="Drag to spin" background="rgba(255,255,255,0.9)" style={[styles.drag, { left: s(12), bottom: s(12) }]} />
           <View style={[styles.polaroid, { right: s(12), bottom: s(10), width: s(56), padding: s(4), paddingBottom: s(14) }]}>
-            <Image source={{ uri: box.photoUrl }} style={{ height: s(48), borderRadius: 2, backgroundColor: colors.stageShadow }} />
+            <Image source={{ uri: box.photoUrl }} style={{ height: s(48), borderRadius: 2, backgroundColor: stageColors.shadow }} />
             <Text style={[styles.polaroidText, { fontSize: s(9) }]}>photo</Text>
           </View>
         </View>
@@ -96,7 +97,7 @@ export function ShareScreen({ box }: { box: BoxView }) {
             style={[styles.caption, { fontSize: s(24), lineHeight: s(26.4), minHeight: s(52.8) }]}
           />
         </View>
-      </Card>
+      </RoughCard>
 
       <View style={{ marginTop: s(14), gap: s(8) }}>
         <Text style={[styles.label, { fontSize: s(13) }]}>Share with friends · each one can remix it</Text>
@@ -109,22 +110,23 @@ export function ShareScreen({ box }: { box: BoxView }) {
       <View style={styles.spacer} />
       <View style={[styles.footer, { gap: s(4) }]}>
         <TrottingBobo size={s(96)} style={{ marginLeft: -s(8) }} />
-        <PrimaryButton title="Share moment" onPress={send} busy={sending.busy} disabled={selected.size === 0 || inviting.busy} />
+        <Button title="Share moment" onPress={send} busy={sending.busy} disabled={selected.size === 0 || inviting.busy} style={styles.grow} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  grow: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.paper },
   flex: { flex: 1 },
   cardHead: { flexDirection: "row", alignItems: "center" },
   nick: { fontFamily: fonts.heavy, color: colors.ink },
   sub: { fontFamily: fonts.body, color: colors.muted },
   stage: {
-    backgroundColor: colors.stage,
-    borderTopWidth: STROKE,
-    borderBottomWidth: STROKE,
+    backgroundColor: stageColors.bg,
+    borderTopWidth: stroke.width,
+    borderBottomWidth: stroke.width,
     borderColor: colors.ink,
     overflow: "hidden",
   },

@@ -8,14 +8,15 @@ import { api, type BoxView } from "../../lib/backend";
 import { useProfile } from "../../lib/session";
 import { useUpload } from "../../lib/upload";
 import { useTask } from "../../lib/useTask";
-import { Card, Header, Pill, PrimaryButton, SecondaryButton, TrottingBobo } from "./parts";
-import { colors, fonts, STROKE, useScale } from "./theme";
+import { Button, RoughCard } from "../../components/ui";
+import { Header, Pill, stageColors, TrottingBobo } from "./parts";
+import { colors, fonts, stroke, useScale } from "../../theme";
 
 type Step = { label: string; done: boolean; active: boolean };
 
 // A 寄出后等待：抠图 → 生成 3D（preparing），ready 后由 SendFlow 切到分享页。editError 时给重试。
 export function WaitingScreen({ box }: { box: BoxView }) {
-  const s = useScale();
+  const { s } = useScale();
   const insets = useSafeAreaInsets();
   const failed = !!box.editError;
   const cutDone = !!box.cutoutUrl;
@@ -28,7 +29,7 @@ export function WaitingScreen({ box }: { box: BoxView }) {
   return (
     <View style={[styles.screen, { paddingHorizontal: s(18), paddingBottom: Math.max(insets.bottom, s(20)) }]}>
       <Header title={failed ? "Oops!" : "Making magic"} left="Home" onLeft={() => router.dismissTo("/")} />
-      <Card style={{ marginTop: s(10) }}>
+      <RoughCard strokeWidth={stroke.width} style={{ marginTop: s(10) }}>
         <View style={[styles.cardHead, { padding: s(12), gap: s(10) }]}>
           <Text style={[styles.cardTitle, { fontSize: s(15) }]}>Box {box.code}</Text>
           <Pill label={failed ? "failed" : box.status} background={failed ? "#FBD3BA" : box.status === "preparing" ? colors.sun : colors.croc} />
@@ -49,7 +50,7 @@ export function WaitingScreen({ box }: { box: BoxView }) {
             steps.map((step) => <StepRow key={step.label} step={step} />)
           )}
         </View>
-      </Card>
+      </RoughCard>
 
       <View style={styles.spacer} />
       {failed ? (
@@ -65,7 +66,7 @@ export function WaitingScreen({ box }: { box: BoxView }) {
 }
 
 function StepRow({ step }: { step: Step }) {
-  const s = useScale();
+  const { s } = useScale();
   const d = s(22);
   return (
     <View style={[styles.stepRow, { gap: s(10) }]}>
@@ -103,7 +104,7 @@ function Spinner({ size }: { size: number }) {
 
 // 抠图失败：用同一张照片重新建一个盒子，或者换一张
 function Retry({ box }: { box: BoxView }) {
-  const s = useScale();
+  const { s } = useScale();
   const { userId } = useProfile();
   const create = useMutation(api.boxes.create);
   const { uploadUri } = useUpload();
@@ -121,8 +122,8 @@ function Retry({ box }: { box: BoxView }) {
     });
   return (
     <View style={{ gap: s(10) }}>
-      <PrimaryButton title="Try again" onPress={retry} busy={busy} style={{ flexGrow: 0 }} />
-      <SecondaryButton title="Pick another photo" onPress={() => router.replace("/new")} disabled={busy} />
+      <Button title="Try again" onPress={retry} busy={busy} />
+      <Button kind="secondary" title="Pick another photo" onPress={() => router.replace("/new")} disabled={busy} />
     </View>
   );
 }
@@ -132,9 +133,9 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   cardTitle: { fontFamily: fonts.heavy, color: colors.ink },
   stage: {
-    backgroundColor: colors.stage,
-    borderTopWidth: STROKE,
-    borderBottomWidth: STROKE,
+    backgroundColor: stageColors.bg,
+    borderTopWidth: stroke.width,
+    borderBottomWidth: stroke.width,
     borderColor: colors.ink,
     alignItems: "center",
     justifyContent: "center",

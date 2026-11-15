@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import type { Id } from "../../lib/backend";
-import { colors, fonts, STROKE, useScale } from "./theme";
+import { colors, fonts, stroke, useScale } from "../../theme";
 
 export type Friend = { userId: Id<"users">; nickname: string; color: string };
 
@@ -37,7 +37,7 @@ function GradientRing({ size }: { size: number }) {
 function DashedCircle({ size }: { size: number }) {
   return (
     <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-      <Circle cx={size / 2} cy={size / 2} r={size / 2 - STROKE / 2} stroke={colors.ink} strokeWidth={STROKE} strokeDasharray="5 4" fill="none" />
+      <Circle cx={size / 2} cy={size / 2} r={size / 2 - stroke.width / 2} stroke={colors.ink} strokeWidth={stroke.width} strokeDasharray="5 4" fill="none" />
     </Svg>
   );
 }
@@ -55,7 +55,7 @@ export function FriendPicker({
   onInvite: () => void;
   inviteBusy?: boolean;
 }) {
-  const s = useScale();
+  const { s } = useScale();
   const d = s(54);
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: s(14), paddingRight: s(18) }}>
@@ -101,7 +101,7 @@ export function FriendPicker({
 
 const styles = StyleSheet.create({
   item: { alignItems: "center" },
-  face: { flex: 1, borderWidth: STROKE, borderColor: colors.ink, alignItems: "center", justifyContent: "center" },
+  face: { flex: 1, borderWidth: stroke.width, borderColor: colors.ink, alignItems: "center", justifyContent: "center" },
   initial: { fontFamily: fonts.heavy, color: colors.ink },
   name: { fontFamily: fonts.bold, color: colors.ink },
   invite: { alignItems: "center", justifyContent: "center" },

@@ -2,9 +2,10 @@ import { router } from "expo-router";
 import { Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BoxView } from "../../lib/backend";
-import { Card, Header, PrimaryButton, SecondaryButton, TrottingBobo } from "./parts";
+import { Button, RoughCard } from "../../components/ui";
+import { Header, TrottingBobo } from "./parts";
 import { inviteMessage } from "./ShareScreen";
-import { colors, fonts, useScale } from "./theme";
+import { colors, fonts, stroke, useScale } from "../../theme";
 
 const STATUS: Partial<Record<BoxView["status"], string>> = {
   ready: "Waiting for someone to claim it",
@@ -15,7 +16,7 @@ const STATUS: Partial<Record<BoxView["status"], string>> = {
 
 // 分享成功后的确认页；也用于 A 查看已寄出、正在被改造的盒子。
 export function SentScreen({ box, sentTo }: { box: BoxView; sentTo?: string[] }) {
-  const s = useScale();
+  const { s } = useScale();
   const insets = useSafeAreaInsets();
   const who = sentTo
     ? sentTo.length > 0
@@ -34,19 +35,19 @@ export function SentScreen({ box, sentTo }: { box: BoxView; sentTo?: string[] })
           <Text style={[styles.sub, { fontSize: s(15) }]}>Each friend gets their own copy to remix.</Text>
         ) : null}
         {box.receiverId ? null : (
-          <Card style={{ alignSelf: "stretch", padding: s(16), gap: s(6), alignItems: "center", marginTop: s(8), backgroundColor: colors.cream }}>
+          <RoughCard strokeWidth={stroke.width} style={{ alignSelf: "stretch", padding: s(16), gap: s(6), alignItems: "center", marginTop: s(8), backgroundColor: colors.cream }}>
             <Text style={[styles.sub, { fontSize: s(13) }]}>Anyone can claim a copy with this code</Text>
             <Text selectable style={[styles.code, { fontSize: s(40), letterSpacing: s(6) }]}>
               {box.code}
             </Text>
-          </Card>
+          </RoughCard>
         )}
       </View>
       <View style={{ gap: s(10) }}>
         {box.receiverId ? null : (
-          <SecondaryButton title="Invite more" onPress={() => Share.share({ message: inviteMessage(box.code) })} />
+          <Button kind="secondary" title="Invite more" onPress={() => Share.share({ message: inviteMessage(box.code) })} />
         )}
-        <PrimaryButton title="Done" onPress={() => router.dismissTo("/")} style={{ flexGrow: 0 }} />
+        <Button title="Done" onPress={() => router.dismissTo("/")} />
       </View>
     </View>
   );

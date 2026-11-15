@@ -9,14 +9,13 @@ import { pickImage, toUploadableJpeg, type LocalImage } from "../../lib/images";
 import { useProfile } from "../../lib/session";
 import { useUpload } from "../../lib/upload";
 import { useTask } from "../../lib/useTask";
-import { Header, PrimaryButton, SecondaryButton, TrottingBobo } from "./parts";
-import { colors, fonts, STROKE, useScale } from "./theme";
-import { useSendFonts } from "./useSendFonts";
+import { Button } from "../../components/ui";
+import { Header, TrottingBobo } from "./parts";
+import { colors, fonts, stroke, useScale } from "../../theme";
 
 // A：拍照 / 相册选图 → 转 JPEG（长边 ≤ 1536）→ 上传 → boxes.create → 去等待页
 export function PhotoScreen() {
-  const ready = useSendFonts();
-  const s = useScale();
+  const { s } = useScale();
   const insets = useSafeAreaInsets();
   const { userId } = useProfile();
   const create = useMutation(api.boxes.create);
@@ -40,8 +39,6 @@ export function PhotoScreen() {
       router.replace(`/box/${boxId}`);
     });
 
-  if (!ready) return <View style={styles.screen} />;
-
   return (
     <View style={[styles.screen, { paddingHorizontal: s(18), paddingBottom: Math.max(insets.bottom, s(20)) }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -64,13 +61,13 @@ export function PhotoScreen() {
             {frame.width > 0 ? (
               <Svg width={frame.width} height={frame.height} style={StyleSheet.absoluteFill} pointerEvents="none">
                 <Rect
-                  x={STROKE / 2}
-                  y={STROKE / 2}
-                  width={frame.width - STROKE}
-                  height={frame.height - STROKE}
+                  x={stroke.width / 2}
+                  y={stroke.width / 2}
+                  width={frame.width - stroke.width}
+                  height={frame.height - stroke.width}
                   rx={s(24)}
                   stroke={colors.ink}
-                  strokeWidth={STROKE}
+                  strokeWidth={stroke.width}
                   strokeDasharray="10 8"
                   fill={colors.cream}
                 />
@@ -84,23 +81,24 @@ export function PhotoScreen() {
       </View>
 
       <View style={[styles.row, { marginTop: s(14), gap: s(10) }]}>
-        <SecondaryButton title={photo ? "Retake" : "Camera"} onPress={() => pick("camera")} disabled={busy} style={styles.flex} />
-        <SecondaryButton title="Library" onPress={() => pick("library")} disabled={busy} style={styles.flex} />
+        <Button kind="secondary" title={photo ? "Retake" : "Camera"} onPress={() => pick("camera")} disabled={busy} style={styles.flex} />
+        <Button kind="secondary" title="Library" onPress={() => pick("library")} disabled={busy} style={styles.flex} />
       </View>
 
       <View style={[styles.footer, { marginTop: s(16), gap: s(4) }]}>
         <TrottingBobo size={s(96)} style={{ marginLeft: -s(8) }} />
-        <PrimaryButton title={busy && photo ? "Packing…" : "Use this photo"} onPress={send} busy={busy && !!photo} disabled={!photo} />
+        <Button title={busy && photo ? "Packing…" : "Use this photo"} onPress={send} busy={busy && !!photo} disabled={!photo} style={styles.grow} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  grow: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.paper },
   hint: { fontFamily: fonts.body, color: colors.muted, textAlign: "center" },
   frame: { flex: 1, overflow: "hidden" },
-  frameBorder: { ...StyleSheet.absoluteFillObject, borderWidth: STROKE, borderColor: colors.ink },
+  frameBorder: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderWidth: stroke.width, borderColor: colors.ink },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2 },
   plus: { fontFamily: fonts.bold, color: colors.ink, lineHeight: 60 },
   emptyTitle: { fontFamily: fonts.hand, color: colors.ink },
