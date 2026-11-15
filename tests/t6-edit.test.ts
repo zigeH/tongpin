@@ -159,6 +159,7 @@ describe("edit.run (real services, fetch stubbed)", () => {
 
   function stubServices(openai: "ok" | "fail", fal: "ok" | "fail" = "ok") {
     const forms: FormData[] = [];
+    const falCalls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "https://api.openai.com/v1/images/edits") {
@@ -167,24 +168,30 @@ describe("edit.run (real services, fetch stubbed)", () => {
         return Response.json({ data: [{ b64_json: FAKE_CUTOUT_PNG_BASE64 }] });
       }
       if (url.startsWith("https://fal.run/")) {
+        falCalls.push(url);
         if (fal === "fail") return new Response("nope", { status: 401 });
         return Response.json({ image: { url: "https://fal.media/files/edited.png" } });
       }
       if (url === "https://fal.media/files/edited.png") return new Response(png);
       return realFetch(input, init);
     }));
-    return forms;
+    return { forms, falCalls };
+  }
+
+  async function storedType(s: Awaited<ReturnType<typeof setup>>, id: Id<"_storage">) {
+    return s.t.run(async (ctx) => (await ctx.storage.get(id))!.type);
   }
 
   beforeEach(() => {
     vi.stubEnv("MOCK_AI", "");
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     vi.stubEnv("OPENAI_IMAGE_MODEL", "");
-    vi.stubEnv("FAL_KEY", "test-key");
+    vi.stubEnv("FAL_KEY", "");
+    vi.stubEnv("EDIT_FAL_CUTOUT", "");
   });
 
-  test("calls OpenAI with snapshot and B's photo, re-cuts, stores editedImageId", async () => {
-    const forms = stubServices("ok");
+  test("by default stores OpenAI's transparent PNG directly, without fal or FAL_KEY", async () => {
+    const { forms, falCalls } = stubServices("ok");
     const s = await setup();
     await s.submit({ extraPhotoStorageId: s.jpeg });
     await s.t.action(internal.edit.run, { boxId: s.boxId });
@@ -196,13 +203,31 @@ describe("edit.run (real services, fetch stubbed)", () => {
     expect(form.getAll("image[]")).toHaveLength(2);
     expect(String(form.get("prompt"))).toContain("给它戴上一顶圣诞帽");
     expect(String(form.get("prompt"))).toContain("second image");
+    expect(falCalls).toHaveLength(0);
 
     const after = await s.box();
     expect(after.status).toBe("editing");
+    expect(after.editError).toBeUndefined();
     expect(after.editedImageId).toBeDefined();
     expect(after.editedImageId).not.toBe(s.png);
-    const type = await s.t.run(async (ctx) => (await ctx.storage.get(after.editedImageId as Id<"_storage">))!.type);
-    expect(type).toBe("image/png");
+    expect(await storedType(s, after.editedImageId!)).toBe("image/png");
+    expect((await s.scheduled()).map((j) => j.name)).toEqual(["edit:run", "kara:request"]);
+  });
+
+  test("EDIT_FAL_CUTOUT=1 re-cuts the OpenAI result with fal", async () => {
+    vi.stubEnv("EDIT_FAL_CUTOUT", "1");
+    vi.stubEnv("FAL_KEY", "test-key");
+    const { forms, falCalls } = stubServices("ok");
+    const s = await setup();
+    await s.submit();
+    await s.t.action(internal.edit.run, { boxId: s.boxId });
+
+    expect(forms).toHaveLength(1);
+    expect(falCalls).toHaveLength(1);
+    const after = await s.box();
+    expect(after.status).toBe("editing");
+    expect(after.editedImageId).toBeDefined();
+    expect(await storedType(s, after.editedImageId!)).toBe("image/png");
     expect((await s.scheduled()).map((j) => j.name)).toEqual(["edit:run", "kara:request"]);
   });
 
@@ -222,7 +247,9 @@ describe("edit.run (real services, fetch stubbed)", () => {
     expect(retried.editError).toBeUndefined();
   });
 
-  test("background removal failure also fails the edit", async () => {
+  test("with EDIT_FAL_CUTOUT=1, background removal failure fails the edit", async () => {
+    vi.stubEnv("EDIT_FAL_CUTOUT", "1");
+    vi.stubEnv("FAL_KEY", "test-key");
     stubServices("ok", "fail");
     const s = await setup();
     await s.submit();
