@@ -1,0 +1,17 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_CONVEX_URL": "https://moonlit-curlew-733.convex.cloud"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

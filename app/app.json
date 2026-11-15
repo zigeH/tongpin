@@ -9,7 +9,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.zigeh.tongpin"
+      "bundleIdentifier": "com.zigeh.tongpin",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.zigeh.tongpin",
@@ -31,6 +34,12 @@
         }
       ],
       "expo-font"
-    ]
+    ],
+    "owner": "yueshuchens-team",
+    "extra": {
+      "eas": {
+        "projectId": "c8d04a11-5b39-4f99-8103-703429e6e3fd"
+      }
+    }
   }
 }
