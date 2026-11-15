@@ -26,6 +26,7 @@ export type BoxView = {
   photoUrl: string;
   cutoutUrl?: string;
   modelUrl?: string;
+  modelUsdzUrl?: string; // iOS AR Quick Look
   // B 的改造，"A 查看且未开盒"时一律省略
   snapshotUrl?: string;
   sceneShotUrl?: string;
@@ -34,6 +35,7 @@ export type BoxView = {
   extraPhotoUrl?: string;
   editedImageUrl?: string;
   editedModelUrl?: string;
+  editedUsdzUrl?: string;
   receiverNote?: string;
   editError?: string;
   sealedAt?: number;
@@ -70,6 +72,7 @@ export async function toBoxView(
     photoUrl: (await url(box.photoId)) ?? "",
     cutoutUrl: await url(box.cutoutId),
     modelUrl: await url(box.modelId),
+    modelUsdzUrl: await url(box.modelUsdzId),
   };
 
   const hideEdits = viewerId !== undefined && viewerId === box.senderId && box.status !== "opened";
@@ -84,6 +87,7 @@ export async function toBoxView(
       extraPhotoUrl: await url(box.extraPhotoId),
       editedImageUrl: await url(box.editedImageId),
       editedModelUrl: await url(box.editedModelId),
+      editedUsdzUrl: await url(box.editedUsdzId),
       receiverNote: box.receiverNote,
       editError: box.editError,
       sealedAt: box.sealedAt,

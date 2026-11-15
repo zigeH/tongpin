@@ -130,15 +130,14 @@ describe("Meshy 流程", () => {
       "image-to-image",
       "image-to-image",
       "image-to-image",
-      "image-to-image",
       "multi-image-to-3d",
       "retexture",
     ]);
-    const [ref, front, side, back, style, model, retexture] = posted;
+    const [ref, front, side, back, model, retexture] = posted;
     expect(ref.body.ai_model).toBe("nano-banana-pro");
     expect(String(ref.body.prompt)).toContain(SUBJECT);
     expect((ref.body.reference_image_urls as string[])[0]).toMatch(/^data:image\/png;base64,/);
-    for (const view of [front, side, back, style]) {
+    for (const view of [front, side, back]) {
       expect(view.body.reference_image_urls).toEqual([`https://assets.meshy.example/${ref.id}.png`]);
     }
     expect(model.body).toMatchObject({
@@ -151,7 +150,7 @@ describe("Meshy 流程", () => {
     expect(String(model.body.texture_prompt)).toContain("yellow body, orange beak");
     expect(retexture.body).toMatchObject({
       input_task_id: model.id,
-      image_style_url: `https://assets.meshy.example/${style.id}.png`,
+      image_style_url: `https://assets.meshy.example/${front.id}.png`,
       enable_original_uv: true,
       enable_pbr: true,
     });
@@ -202,7 +201,7 @@ describe("Meshy 流程", () => {
     await s.t.action(internal.meshy.start, { boxId: s.boxId, kind: "original" });
     await s.finish();
     expect(posted.filter((p) => p.resource === "multi-image-to-3d")).toHaveLength(2);
-    expect(posted.filter((p) => p.resource === "image-to-image")).toHaveLength(5);
+    expect(posted.filter((p) => p.resource === "image-to-image")).toHaveLength(4);
     expect((await s.box()).status).toBe("ready");
   });
 

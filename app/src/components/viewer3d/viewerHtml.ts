@@ -3,6 +3,7 @@
 //   { type: "loaded" } | { type: "progress", ratio } | { type: "error", message } | { type: "snapshot", dataUrl, pose }
 // Calls from the app: window.capture(), window.setAutoRotate(on)
 import type { CameraPose } from "../../lib/backend";
+import { DEFAULT_EXPOSURE, PLUSH_JS } from "./plushJs";
 
 const THREE_VERSION = "0.187.0";
 
@@ -11,6 +12,9 @@ export type ViewerOptions = {
   autoRotateSpeed: number;
   interactive: boolean;
   initialPose?: CameraPose;
+  // 毛绒效果：短绒开关和亮度（越小越暗）
+  fur?: boolean;
+  exposure?: number;
 };
 
 export function viewerHtml(modelUrl: string, options: ViewerOptions): string {
@@ -49,11 +53,19 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = OPTIONS.exposure ?? ${DEFAULT_EXPOSURE};
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
-scene.add(new THREE.HemisphereLight(0xffffff, 0xd9c9b0, 0.6));
+scene.add(new THREE.HemisphereLight(0xfff1dd, 0x8a6444, 0.45));
+const keyLight = new THREE.DirectionalLight(0xfff1de, 1.2); keyLight.position.set(2.5, 4, 3.5); scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0xffe0b8, 1.0); rimLight.position.set(-2, 2.5, -4); scene.add(rimLight);
+${PLUSH_JS}
+let plush = null;
+window.setFur = (on) => plush && plush.setFur(on);
+window.setExposure = (v) => { renderer.toneMappingExposure = v; plush && plush.setExposure(v); };
 const camera = new THREE.PerspectiveCamera(OPTIONS.initialPose ? OPTIONS.initialPose.fov : 40, window.innerWidth / window.innerHeight, 0.01, 1000);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -87,6 +99,8 @@ new GLTFLoader().load(
     const center = box.getCenter(new THREE.Vector3());
     model.position.sub(center);
     scene.add(model);
+    try { plush = applyPlush(THREE, model, { exposure: OPTIONS.exposure ?? ${DEFAULT_EXPOSURE}, fur: OPTIONS.fur !== false, keyDir: keyLight.position }); }
+    catch (e) { post({ type: "error", message: "plush: " + (e && e.message ? e.message : String(e)) }); }
     camera.near = size / 100;
     camera.far = size * 100;
     controls.minDistance = size * 0.45;

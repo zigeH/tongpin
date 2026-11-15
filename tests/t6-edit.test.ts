@@ -158,11 +158,16 @@ describe("edit.run (MOCK_AI=1)", () => {
 describe("edit.run (real services, fetch stubbed)", () => {
   const png = Uint8Array.from(atob(FAKE_CUTOUT_PNG_BASE64), (c) => c.charCodeAt(0));
 
-  function stubServices(openai: "ok" | "fail", cutout: "ok" | "fail" = "ok") {
+  function stubServices(openai: "ok" | "fail", cutout: "ok" | "fail" = "ok", director: "ok" | "fail" = "ok") {
     const forms: FormData[] = [];
     const cutoutCalls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url === "https://api.openai.com/v1/chat/completions") {
+        if (director === "fail") return new Response("boom", { status: 500 });
+        const content = JSON.stringify({ direction: "DIRECTED: wears a red knit Santa hat with a white pompom, smiling curved eyes", notes: "补了笑眼" });
+        return Response.json({ choices: [{ message: { content } }] });
+      }
       if (url === "https://api.openai.com/v1/images/edits") {
         const form = init!.body as FormData;
         const isCutout = form.get("prompt") === CUTOUT_PROMPT;
@@ -191,6 +196,17 @@ describe("edit.run (real services, fetch stubbed)", () => {
     vi.stubEnv("EDIT_FAL_CUTOUT", "");
   });
 
+  test("导演扩写失败时退回用户原句，改图照常进行", async () => {
+    const { forms } = stubServices("ok", "ok", "fail");
+    const s = await setup();
+    await s.submit();
+    await s.t.action(internal.edit.run, { boxId: s.boxId });
+    expect(forms).toHaveLength(1);
+    expect(String(forms[0].get("prompt"))).toContain("给它戴上一顶圣诞帽");
+    expect(String(forms[0].get("prompt"))).not.toContain("Art direction");
+    expect((await s.box()).editError).toBeUndefined();
+  });
+
   test("by default stores OpenAI's transparent PNG directly, without a second cutout pass", async () => {
     const { forms, cutoutCalls } = stubServices("ok");
     const s = await setup();
@@ -204,6 +220,7 @@ describe("edit.run (real services, fetch stubbed)", () => {
     expect(form.getAll("image[]")).toHaveLength(2);
     expect(String(form.get("prompt"))).toContain("给它戴上一顶圣诞帽");
     expect(String(form.get("prompt"))).toContain("second image");
+    expect(String(form.get("prompt"))).toContain("Art direction (follow closely): DIRECTED:");
     expect(cutoutCalls).toHaveLength(0);
 
     const after = await s.box();

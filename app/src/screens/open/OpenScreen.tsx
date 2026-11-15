@@ -169,6 +169,7 @@ export function OpenScreen({ box }: { box: BoxView }) {
             ) : null}
             <Button title="Remix it and send it back" busy={busy} onPress={sendBack} style={styles.primary} />
             <View style={styles.links}>
+              <Button kind="ghost" title="Take a photo with it" onPress={() => router.push(`/photo/${view._id}`)} />
               <Button kind="ghost" title="Replay" onPress={play} />
               <Button kind="ghost" title="Share the unboxing" onPress={shareUnboxing} />
             </View>
@@ -206,5 +207,5 @@ const styles = StyleSheet.create({
   note: { fontFamily: F.hand, fontSize: 30, lineHeight: 34.5, color: C.ink },
   remixLine: { fontFamily: F.body, fontSize: 13, color: C.muted },
   primary: { marginTop: 6 },
-  links: { flexDirection: "row", justifyContent: "center", gap: 4 },
+  links: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 4 },
 });

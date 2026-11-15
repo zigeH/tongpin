@@ -6,7 +6,6 @@ import type { Id } from "./_generated/dataModel";
 import { fail } from "./lib/errors";
 import {
   CLEAN_REF,
-  COZY_STYLE,
   createTask,
   describeSubject,
   FALLBACK_COLORS,
@@ -45,7 +44,7 @@ type StepState = Infer<typeof stepState>;
 
 const STAGES: Record<StageName, { resource: MeshyResource; keys: string[]; next: StageName | null }> = {
   cleanRef: { resource: "image-to-image", keys: ["ref"], next: "views" },
-  views: { resource: "image-to-image", keys: ["front", "side", "back", "style"], next: "model" },
+  views: { resource: "image-to-image", keys: ["front", "side", "back"], next: "model" },
   model: { resource: "multi-image-to-3d", keys: ["model"], next: "retexture" },
   retexture: { resource: "retexture", keys: ["glb"], next: null },
 };
@@ -65,8 +64,6 @@ async function taskBody(s: StepState, key: string): Promise<Record<string, unkno
     case "side":
     case "back":
       return image(VIEWS_BASE(s.subject) + VIEW_ANGLES[key], s.outputs.ref);
-    case "style":
-      return image(COZY_STYLE(s.subject), s.outputs.ref);
     case "model":
       return {
         image_urls: [s.outputs.front, s.outputs.side, s.outputs.back],
@@ -80,7 +77,8 @@ async function taskBody(s: StepState, key: string): Promise<Record<string, unkno
     default:
       return {
         input_task_id: s.outputs.model,
-        image_style_url: s.outputs.style,
+        // 实测：用正面三视图当贴图风格参考，比单独生成的 cozy 风格图更蓬、更有体积感
+        image_style_url: s.outputs.front,
         enable_original_uv: true,
         enable_pbr: true,
       };
@@ -180,7 +178,8 @@ export const step = internalAction({
         outputs[job.key] = output;
       });
       if (stage.next === null) {
-        await ctx.runAction(internal.kara.download, { boxId: s.boxId, kind: s.kind, url: outputs.glb });
+        const usdzUrl = tasks.find((t) => t.model_urls?.usdz)?.model_urls?.usdz;
+        await ctx.runAction(internal.kara.download, { boxId: s.boxId, kind: s.kind, url: outputs.glb, ...(usdzUrl ? { usdzUrl } : {}) });
         return null;
       }
       await ctx.scheduler.runAfter(0, internal.meshy.step, {

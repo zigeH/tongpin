@@ -35,6 +35,9 @@ export function ResultView({ box, canReply }: { box: BoxView; canReply: boolean 
           <ModelViewer modelUrl={box.editedModelUrl} />
         </Section>
       ) : null}
+      {box.editedModelUrl ? (
+        <Button kind="secondary" title="Take a photo with it" onPress={() => router.push(`/photo/${box._id}`)} />
+      ) : null}
       {box.snapshotUrl ? <Picture uri={box.snapshotUrl} label="对方定格的角度" /> : null}
       {box.extraPhotoUrl ? <Picture uri={box.extraPhotoUrl} label="对方加的参考照片" /> : null}
       {canReply ? (

@@ -4,14 +4,16 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { fail as failWith } from "./lib/errors";
 import { removeBackground } from "./lib/cutout";
+import { directRemix } from "./lib/director";
 import { isMock } from "./lib/mock";
 import { assertStatus } from "./lib/status";
 
 const DEFAULT_IMAGE_MODEL = "gpt-image-2.6-flare";
 
-export function buildEditPrompt(instruction: string, hasExtraPhoto: boolean): string {
+export function buildEditPrompt(instruction: string, hasExtraPhoto: boolean, direction?: string): string {
   return [
     `The first image is a 3D object on a transparent background. Edit this object according to the user's request: "${instruction}".`,
+    direction ? `Art direction (follow closely): ${direction}` : "",
     hasExtraPhoto ? "Incorporate the subject from the second image into the object as part of it, not as a separate item." : "",
     "Requirements: the result is exactly one standalone object; any added items are physically attached to it or worn by it.",
     "Show the whole object fully inside the frame with some empty margin, centered, same camera angle, scale and lighting as the input.",
@@ -87,7 +89,9 @@ export const run = internalAction({
         const snapshot = await ctx.storage.get(snapshotId);
         if (snapshot === null) throw new Error("定格图不存在");
         const extra = box.extraPhotoId ? await ctx.storage.get(box.extraPhotoId) : null;
-        const edited = await openaiEdit(buildEditPrompt(box.prompt ?? "", extra !== null), extra ? [snapshot, extra] : [snapshot]);
+        // 导演：先把一句话扩写成具体的改图指导（失败时为 null，直接用原句）
+        const plan = await directRemix(box.prompt ?? "", extra !== null);
+        const edited = await openaiEdit(buildEditPrompt(box.prompt ?? "", extra !== null, plan?.direction), extra ? [snapshot, extra] : [snapshot]);
         const rawId = await ctx.storage.store(edited);
         if (process.env.EDIT_FAL_CUTOUT !== "1") {
           editedImageId = rawId;
