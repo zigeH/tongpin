@@ -96,3 +96,18 @@ app/
   经 `postMessage` 回到 App，写进缓存文件再上传；同时带上相机的 `position / target / fov` 作为 `cameraPose`。
 - 相册选图用 `preferredAssetRepresentationMode: Current` 拿原始文件（常见 HEIC），一律转 JPEG 再上传。
 - 没有登录、没有推送。
+
+## TestFlight 与 OTA 更新（EAS）
+
+- EAS 项目：`@yueshuchens-team/tongpin-blindbox`；App Store Connect 里的 App：BuildBlindBox（ascAppId 6835225734，见 `eas.json`）。
+- 出 TestFlight 包：`cd app && npx eas-cli@latest build -p ios --profile production`，构建完成后运行 `npx eas-cli@latest submit -p ios --profile production --latest`。buildNumber 由 EAS 远端自动递增。内部测试组「Team (Expo)」能自动拿到所有新 build。
+- **只改了 JS 或 TS、资源文件时，不用重新出包，直接推 OTA 更新：**
+  ```bash
+  cd app
+  npx eas-cli@latest update --branch production --message "说明这次改了什么"
+  ```
+  TestFlight 包属于 `production` channel（见 `eas.json`），channel 默认对应同名的 branch。已安装的 App 下次冷启动时下载更新，**再冷启动一次**才生效。
+- 什么时候必须重新出包：加了或升级了原生依赖（`npx expo install` 装的带原生代码的包）、改了 `app.json` 里的原生配置（权限、插件、bundle id 等）、升级了 Expo SDK。
+- `runtimeVersion` 用的是 `appVersion` 策略，等于 `app.json` 里的 `version`。原生层有改动时，要把 `version` 加一再出包。否则旧包会收到需要新原生代码的 JS 更新，可能会崩溃。
+- 回滚：`npx eas-cli@latest update:rollback`，或者再推一次旧的提交。
+- 在 Expo Go 里调试：`npx expo start --tunnel`，扫终端里的二维码打开。Expo Go 不会走 EAS Update。
