@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import schema from "../convex/schema";
 import { internal } from "../convex/_generated/api";
 import type { Doc } from "../convex/_generated/dataModel";
+import { CUTOUT_PROMPT } from "../convex/lib/cutout";
 import { FAKE_CUTOUT_PNG_BASE64 } from "../convex/lib/mock";
 import { toBoxView } from "../convex/lib/view";
 
@@ -30,30 +31,29 @@ async function setup(fields: Partial<Doc<"boxes">> = {}) {
   return { t, boxId, senderId, box, scheduled };
 }
 
-function falFetch(outcomes: ("ok" | "fail")[]) {
-  const calls: { url: string; init?: RequestInit }[] = [];
-  const pngBytes = Uint8Array.from(atob(FAKE_CUTOUT_PNG_BASE64), (c) => c.charCodeAt(0));
+function openaiFetch(outcomes: ("ok" | "fail")[]) {
+  const forms: FormData[] = [];
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url.startsWith("https://fal.run/")) {
-      calls.push({ url, init });
-      if (outcomes[calls.length - 1] === "fail") {
-        return new Response(JSON.stringify({ detail: "Invalid key" }), { status: 401 });
+    if (url === "https://api.openai.com/v1/images/edits") {
+      forms.push(init!.body as FormData);
+      if (outcomes[forms.length - 1] === "fail") {
+        return new Response(JSON.stringify({ error: { message: "Incorrect API key provided" } }), { status: 401 });
       }
-      return Response.json({
-        image: { url: "https://fal.media/files/cutout.png", content_type: "image/png", width: 32, height: 32 },
-      });
+      return Response.json({ data: [{ b64_json: FAKE_CUTOUT_PNG_BASE64 }] });
     }
-    if (url === "https://fal.media/files/cutout.png") return new Response(pngBytes);
+    if (url.startsWith("https://some-deployment.convex.cloud/api/storage/")) {
+      return new Response("jpeg", { headers: { "Content-Type": "image/jpeg" } });
+    }
     return realFetch(input, init);
   });
   vi.stubGlobal("fetch", fn);
-  return calls;
+  return forms;
 }
 
 beforeEach(() => {
-  vi.stubEnv("FAL_KEY", "test-key");
-  vi.stubEnv("FAL_BG_MODEL", "");
+  vi.stubEnv("OPENAI_API_KEY", "sk-test");
+  vi.stubEnv("OPENAI_IMAGE_MODEL", "");
 });
 
 afterEach(() => {
@@ -91,22 +91,26 @@ describe("prepare.run (MOCK_AI=1)", () => {
   });
 });
 
-describe("prepare.run (real fal path, fetch stubbed)", () => {
+describe("prepare.run (real OpenAI path, fetch stubbed)", () => {
   beforeEach(() => vi.stubEnv("MOCK_AI", ""));
 
-  test("calls fal with image_url and stores the downloaded PNG", async () => {
-    const calls = falFetch(["ok"]);
+  test("sends the photo to OpenAI images/edits with a transparent-background request and stores the PNG", async () => {
+    const forms = openaiFetch(["ok"]);
     const { t, boxId, box, scheduled } = await setup();
 
     await t.action(internal.prepare.run, { boxId });
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe("https://fal.run/fal-ai/birefnet");
-    const headers = calls[0].init!.headers as Record<string, string>;
-    expect(headers.Authorization).toBe("Key test-key");
-    const body = JSON.parse(calls[0].init!.body as string);
-    expect(body.image_url).toMatch(/^https?:\/\//);
-    expect(body.output_format).toBe("png");
+    expect(forms).toHaveLength(1);
+    const form = forms[0];
+    expect(form.get("model")).toBe("gpt-image-2.6-flare");
+    expect(form.get("background")).toBe("transparent");
+    expect(form.get("output_format")).toBe("png");
+    expect(form.has("input_fidelity")).toBe(false);
+    expect(String(form.get("prompt"))).toBe(CUTOUT_PROMPT);
+    const images = form.getAll("image[]") as File[];
+    expect(images).toHaveLength(1);
+    expect(images[0].type).toBe("image/jpeg");
+    expect(images[0].name).toBe("photo.jpg");
 
     const after = await box();
     expect(after.cutoutId).toBeDefined();
@@ -119,47 +123,47 @@ describe("prepare.run (real fal path, fetch stubbed)", () => {
     expect((await scheduled()).map((j) => j.name)).toEqual(["kara:request"]);
   });
 
-  test("FAL_BG_MODEL overrides the model path", async () => {
-    vi.stubEnv("FAL_BG_MODEL", "fal-ai/birefnet/v2");
-    const calls = falFetch(["ok"]);
+  test("OPENAI_IMAGE_MODEL overrides the model", async () => {
+    vi.stubEnv("OPENAI_IMAGE_MODEL", "gpt-image-2.6-sunburst");
+    const forms = openaiFetch(["ok"]);
     const { t, boxId } = await setup();
     await t.action(internal.prepare.run, { boxId });
-    expect(calls[0].url).toBe("https://fal.run/fal-ai/birefnet/v2");
+    expect(forms[0].get("model")).toBe("gpt-image-2.6-sunburst");
   });
 
   test("first failure is retried once and then succeeds", async () => {
-    const calls = falFetch(["fail", "ok"]);
+    const forms = openaiFetch(["fail", "ok"]);
     const { t, boxId, box } = await setup();
     await t.action(internal.prepare.run, { boxId });
-    expect(calls).toHaveLength(2);
+    expect(forms).toHaveLength(2);
     const after = await box();
     expect(after.cutoutId).toBeDefined();
     expect(after.editError).toBeUndefined();
   });
 
-  test("two failures (wrong FAL_KEY) write editError, stay preparing, schedule nothing", async () => {
-    vi.stubEnv("FAL_KEY", "wrong-key");
-    const calls = falFetch(["fail", "fail"]);
+  test("two failures (wrong OPENAI_API_KEY) write editError, stay preparing, schedule nothing", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-wrong");
+    const forms = openaiFetch(["fail", "fail"]);
     const { t, boxId, senderId, box, scheduled } = await setup();
 
     await t.action(internal.prepare.run, { boxId });
 
-    expect(calls).toHaveLength(2);
+    expect(forms).toHaveLength(2);
     const after = await box();
     expect(after.status).toBe("preparing");
     expect(after.cutoutId).toBeUndefined();
-    expect(after.editError).toMatch(/^抠图失败：fal 返回 401/);
+    expect(after.editError).toMatch(/^抠图失败：OpenAI 返回 401/);
     expect(await scheduled()).toHaveLength(0);
     const view = await t.run((ctx) => toBoxView(ctx, after, senderId));
     expect(view.editError).toBe(after.editError);
   });
 
-  test("missing FAL_KEY is reported as the failure reason", async () => {
-    vi.stubEnv("FAL_KEY", "");
-    falFetch([]);
+  test("missing OPENAI_API_KEY is reported as the failure reason", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    openaiFetch([]);
     const { t, boxId, box } = await setup();
     await t.action(internal.prepare.run, { boxId });
-    expect((await box()).editError).toBe("抠图失败：FAL_KEY 未配置");
+    expect((await box()).editError).toBe("抠图失败：OPENAI_API_KEY 未配置");
   });
 });
 

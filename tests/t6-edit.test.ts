@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import schema from "../convex/schema";
 import { api, internal } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
+import { CUTOUT_PROMPT } from "../convex/lib/cutout";
 import { FAKE_CUTOUT_PNG_BASE64 } from "../convex/lib/mock";
 
 const modules = import.meta.glob("../convex/**/*.*s");
@@ -157,25 +158,26 @@ describe("edit.run (MOCK_AI=1)", () => {
 describe("edit.run (real services, fetch stubbed)", () => {
   const png = Uint8Array.from(atob(FAKE_CUTOUT_PNG_BASE64), (c) => c.charCodeAt(0));
 
-  function stubServices(openai: "ok" | "fail", fal: "ok" | "fail" = "ok") {
+  function stubServices(openai: "ok" | "fail", cutout: "ok" | "fail" = "ok") {
     const forms: FormData[] = [];
-    const falCalls: string[] = [];
+    const cutoutCalls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "https://api.openai.com/v1/images/edits") {
-        forms.push(init!.body as FormData);
-        if (openai === "fail") return new Response(JSON.stringify({ error: { message: "bad" } }), { status: 500 });
+        const form = init!.body as FormData;
+        const isCutout = form.get("prompt") === CUTOUT_PROMPT;
+        if (isCutout) cutoutCalls.push(url);
+        else forms.push(form);
+        const outcome = isCutout ? cutout : openai;
+        if (outcome === "fail") return new Response(JSON.stringify({ error: { message: "bad" } }), { status: isCutout ? 401 : 500 });
         return Response.json({ data: [{ b64_json: FAKE_CUTOUT_PNG_BASE64 }] });
       }
-      if (url.startsWith("https://fal.run/")) {
-        falCalls.push(url);
-        if (fal === "fail") return new Response("nope", { status: 401 });
-        return Response.json({ image: { url: "https://fal.media/files/edited.png" } });
+      if (url.startsWith("https://some-deployment.convex.cloud/api/storage/")) {
+        return new Response(png, { headers: { "Content-Type": "image/png" } });
       }
-      if (url === "https://fal.media/files/edited.png") return new Response(png);
       return realFetch(input, init);
     }));
-    return { forms, falCalls };
+    return { forms, cutoutCalls };
   }
 
   async function storedType(s: Awaited<ReturnType<typeof setup>>, id: Id<"_storage">) {
@@ -186,12 +188,11 @@ describe("edit.run (real services, fetch stubbed)", () => {
     vi.stubEnv("MOCK_AI", "");
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     vi.stubEnv("OPENAI_IMAGE_MODEL", "");
-    vi.stubEnv("FAL_KEY", "");
     vi.stubEnv("EDIT_FAL_CUTOUT", "");
   });
 
-  test("by default stores OpenAI's transparent PNG directly, without fal or FAL_KEY", async () => {
-    const { forms, falCalls } = stubServices("ok");
+  test("by default stores OpenAI's transparent PNG directly, without a second cutout pass", async () => {
+    const { forms, cutoutCalls } = stubServices("ok");
     const s = await setup();
     await s.submit({ extraPhotoStorageId: s.jpeg });
     await s.t.action(internal.edit.run, { boxId: s.boxId });
@@ -203,7 +204,7 @@ describe("edit.run (real services, fetch stubbed)", () => {
     expect(form.getAll("image[]")).toHaveLength(2);
     expect(String(form.get("prompt"))).toContain("给它戴上一顶圣诞帽");
     expect(String(form.get("prompt"))).toContain("second image");
-    expect(falCalls).toHaveLength(0);
+    expect(cutoutCalls).toHaveLength(0);
 
     const after = await s.box();
     expect(after.status).toBe("editing");
@@ -214,16 +215,15 @@ describe("edit.run (real services, fetch stubbed)", () => {
     expect((await s.scheduled()).map((j) => j.name)).toEqual(["edit:run", "kara:request"]);
   });
 
-  test("EDIT_FAL_CUTOUT=1 re-cuts the OpenAI result with fal", async () => {
+  test("EDIT_FAL_CUTOUT=1 re-cuts the OpenAI result with lib/cutout removeBackground", async () => {
     vi.stubEnv("EDIT_FAL_CUTOUT", "1");
-    vi.stubEnv("FAL_KEY", "test-key");
-    const { forms, falCalls } = stubServices("ok");
+    const { forms, cutoutCalls } = stubServices("ok");
     const s = await setup();
     await s.submit();
     await s.t.action(internal.edit.run, { boxId: s.boxId });
 
     expect(forms).toHaveLength(1);
-    expect(falCalls).toHaveLength(1);
+    expect(cutoutCalls).toHaveLength(1);
     const after = await s.box();
     expect(after.status).toBe("editing");
     expect(after.editedImageId).toBeDefined();
@@ -249,13 +249,12 @@ describe("edit.run (real services, fetch stubbed)", () => {
 
   test("with EDIT_FAL_CUTOUT=1, background removal failure fails the edit", async () => {
     vi.stubEnv("EDIT_FAL_CUTOUT", "1");
-    vi.stubEnv("FAL_KEY", "test-key");
     stubServices("ok", "fail");
     const s = await setup();
     await s.submit();
     await s.t.action(internal.edit.run, { boxId: s.boxId });
     const after = await s.box();
     expect(after.status).toBe("claimed");
-    expect(after.editError).toMatch(/^改造失败：fal 返回 401/);
+    expect(after.editError).toMatch(/^改造失败：OpenAI 返回 401/);
   });
 });

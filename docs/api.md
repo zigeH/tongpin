@@ -90,4 +90,13 @@ stateDiagram-v2
 
 ## 后端环境变量
 
-- `EDIT_FAL_CUTOUT`：设为 `1` 时，一句话改图的结果会再用 fal 去一次背景（需要 `FAL_KEY`）；默认不设，直接存 OpenAI 返回的透明 PNG。
+| 名字 | 用途 |
+| --- | --- |
+| `OPENAI_API_KEY` | OpenAI 图像编辑，抠图（`prepare.run`）和一句话改图（`edit.run`）都用它 |
+| `OPENAI_IMAGE_MODEL` | 图像编辑模型，默认 `gpt-image-2.6-flare`，抠图和改图共用 |
+| `MOCK_AI` | 设为 `1` 时不调任何外部 AI 服务 |
+| `MOCK_3D` | 设为 `1` 时只假 3D（`kara.request` 走 `kara.fake`），抠图和改图仍走真实服务 |
+| `KARA_WEBHOOK_URL`、`KARA_TOKEN` | 可选：通知 Kara 的地址、`attachModel` 的校验口令 |
+| `EDIT_FAL_CUTOUT` | 设为 `1` 时，一句话改图的结果会再用 `lib/cutout.ts` 的 `removeBackground`（OpenAI）去一次背景；默认不设，直接存 OpenAI 返回的透明 PNG。名字是历史遗留，已经不走 fal |
+
+抠图不再用 fal，没有 `FAL_KEY` / `FAL_BG_MODEL`。
