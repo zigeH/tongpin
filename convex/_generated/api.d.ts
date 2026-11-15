@@ -24,6 +24,7 @@ import type * as impl_boxes_submitEdit from "../impl/boxes/submitEdit.js";
 import type * as kara from "../kara.js";
 import type * as lib_code from "../lib/code.js";
 import type * as lib_errors from "../lib/errors.js";
+import type * as lib_fal from "../lib/fal.js";
 import type * as lib_mock from "../lib/mock.js";
 import type * as lib_status from "../lib/status.js";
 import type * as lib_view from "../lib/view.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   kara: typeof kara;
   "lib/code": typeof lib_code;
   "lib/errors": typeof lib_errors;
+  "lib/fal": typeof lib_fal;
   "lib/mock": typeof lib_mock;
   "lib/status": typeof lib_status;
   "lib/view": typeof lib_view;
