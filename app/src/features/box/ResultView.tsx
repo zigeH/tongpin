@@ -1,25 +1,23 @@
 import { useMutation } from "convex/react";
 import { router } from "expo-router";
-import { useState } from "react";
 import { StyleSheet, Text } from "react-native";
 import { api, type BoxView } from "../../lib/backend";
 import { useProfile } from "../../lib/session";
 import { useTask } from "../../lib/useTask";
 import { ModelViewer } from "../../components/ModelViewer";
-import { Button, Input, Muted, Screen, Section } from "../../components/ui";
+import { Button, Muted, Screen, Section } from "../../components/ui";
 import { BoxHeader, Picture } from "./common";
 
-// 开盒后的结果（A 看到 B 的改造）；A 可以回礼。
+// 开盒后的结果（A 看到 B 的改造）；A 可以在 B 的结果上再改一次寄回（boxes.remixBack）。
 export function ResultView({ box, canReply }: { box: BoxView; canReply: boolean }) {
   const { userId } = useProfile();
-  const reply = useMutation(api.boxes.reply);
+  const remixBack = useMutation(api.boxes.remixBack);
   const { busy, run } = useTask();
-  const [note, setNote] = useState("");
 
-  const sendReply = () =>
+  const sendBack = () =>
     run(async () => {
-      const { boxId } = await reply({ boxId: box._id, userId, senderNote: note.trim() || undefined });
-      router.replace(`/box/${boxId}`);
+      const { boxId } = await remixBack({ boxId: box._id, userId });
+      router.push(`/box/${boxId}`);
     });
 
   return (
@@ -40,10 +38,7 @@ export function ResultView({ box, canReply }: { box: BoxView; canReply: boolean 
       {box.snapshotUrl ? <Picture uri={box.snapshotUrl} label="对方定格的角度" /> : null}
       {box.extraPhotoUrl ? <Picture uri={box.extraPhotoUrl} label="对方加的参考照片" /> : null}
       {canReply ? (
-        <Section title="回礼">
-          <Input value={note} onChangeText={setNote} placeholder="回一句话（可选）" maxLength={200} />
-          <Button title="回礼" busy={busy} onPress={sendReply} />
-        </Section>
+        <Button title="Remix it and send it back" busy={busy} onPress={sendBack} />
       ) : null}
     </Screen>
   );
