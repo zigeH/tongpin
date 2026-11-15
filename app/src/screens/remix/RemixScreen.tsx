@@ -51,6 +51,10 @@ const EDITING_LINES = ["Mixing paint…", "Adding magic…", "Polishing…", "Al
 
 type Step = "angle" | "prompt";
 
+const SEND_OFF_HOP_MS = 900;
+const SEND_OFF_WALK_MS = 1500;
+const SEND_OFF_MS = SEND_OFF_HOP_MS + SEND_OFF_WALK_MS + 300;
+
 export function RemixScreen({ box }: { box: BoxView }) {
   const { userId } = useProfile();
   const submitEdit = useMutation(api.boxes.submitEdit);
@@ -104,7 +108,7 @@ export function RemixScreen({ box }: { box: BoxView }) {
   // Play Bobo's departure first: once seal lands, the box route swaps this screen out.
   const sendOff = async () => {
     setSending(true);
-    await new Promise((resolve) => setTimeout(resolve, 2300));
+    await new Promise((resolve) => setTimeout(resolve, SEND_OFF_MS));
     try {
       await seal({ boxId: box._id, userId, receiverNote: note.trim() });
       router.dismissTo("/");
@@ -158,6 +162,7 @@ export function RemixScreen({ box }: { box: BoxView }) {
             key="editing"
             other={other}
             snapshotUri={snapshot ? `data:image/png;base64,${snapshot.pngBase64}` : box.snapshotUrl}
+            editedImageUri={box.editedImageUrl}
             extraPhotoUri={extraPhoto?.uri ?? box.extraPhotoUrl}
             prompt={box.prompt ?? prompt}
             onClose={close}
@@ -419,18 +424,21 @@ function PromptStep({
 function EditingStep({
   other,
   snapshotUri,
+  editedImageUri,
   extraPhotoUri,
   prompt,
   onClose,
 }: {
   other: Other;
   snapshotUri?: string;
+  editedImageUri?: string;
   extraPhotoUri?: string;
   prompt: string;
   onClose: () => void;
 }) {
   const { s } = useScale();
-  const line = useCycle(EDITING_LINES, 2200);
+  const cycling = useCycle(EDITING_LINES, 2200);
+  const line = editedImageUri ? "Building 3D…" : cycling;
   const wobble = useLoop(1600);
   const hop = useLoop(700);
   const rotate = wobble.interpolate({ inputRange: [0, 1], outputRange: ["-6deg", "-1deg"] });
@@ -442,11 +450,13 @@ function EditingStep({
     <Enter>
       <View style={styles.pad}>
         <TopBar left={{ label: "Close", onPress: onClose }} name={other.name} color={other.color} label={`For ${other.name}`} step={1} />
-        <Title sub="Usually under a minute. You can leave, Bobo keeps going.">Bobo is remixing…</Title>
+        <Title sub={editedImageUri ? "The picture is ready. Now Bobo is shaping it in 3D." : "Usually under a minute. You can leave, Bobo keeps going."}>
+          Bobo is remixing…
+        </Title>
       </View>
       <View style={[styles.editingStage, { height: s(440) }]}>
         <Animated.View style={[styles.editingPhoto, { transform: [{ rotate }] }]}>
-          <Polaroid uri={snapshotUri} caption={line} size={s(160)} rotate={0} />
+          <Polaroid uri={editedImageUri ?? snapshotUri} caption={line} size={s(160)} rotate={0} />
         </Animated.View>
         {extraPhotoUri ? (
           <View style={styles.editingExtra}>
@@ -556,8 +566,8 @@ function SendOff({ other }: { other: Other }) {
   const walk = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.sequence([
-      Animated.delay(600),
-      Animated.timing(walk, { toValue: 1, duration: 1600, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      Animated.delay(SEND_OFF_HOP_MS),
+      Animated.timing(walk, { toValue: 1, duration: SEND_OFF_WALK_MS, easing: Easing.in(Easing.quad), useNativeDriver: true }),
     ]).start();
   }, [walk]);
   const translateX = walk.interpolate({ inputRange: [0, 1], outputRange: [0, width] });
@@ -570,7 +580,7 @@ function SendOff({ other }: { other: Other }) {
       </View>
       <View style={[styles.sendStage, { height: s(380) }]}>
         <StageGround width={width - 44} />
-        <Animated.View style={[styles.sendBobo, { top: s(110), transform: [{ translateX }] }]}>
+        <Animated.View accessible accessibilityLabel="Bobo carrying the box away" style={[styles.sendBobo, { top: s(110), transform: [{ translateX }] }]}>
           <TrottingBobo source={bobo.hold} size={s(220)} period={700} lift={6} />
         </Animated.View>
         <TwinkleSparkle size={26} color={colors.sun} duration={1200} style={{ left: s(30), top: s(70) }} />
