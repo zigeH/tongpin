@@ -7,7 +7,6 @@ import Animated, {
   useFrameCallback,
   useReducedMotion,
   useSharedValue,
-  withDelay,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,7 +20,6 @@ import { Button, NamePill, RoughCard } from "../../components/ui";
 import { T, ease, track } from "./timeline";
 
 // How long the edited picture stays over the 3D viewer after it mounts, until the viewer reports loading.
-const IMAGE_HANDOFF_MS = 2500;
 
 // A opens the box B remixed: tap the ball, big bang, B's remix floats up, the card rises.
 export function OpenScreen({ box }: { box: BoxView }) {
@@ -80,7 +78,6 @@ export function OpenScreen({ box }: { box: BoxView }) {
   useEffect(() => {
     if (!show3d || !view.editedModelUrl) return;
     imageCover.value = 1;
-    imageCover.value = withDelay(IMAGE_HANDOFF_MS, withTiming(0, { duration: 400 }));
   }, [show3d, view.editedModelUrl, imageCover]);
 
   const sendBack = () =>
@@ -113,7 +110,15 @@ export function OpenScreen({ box }: { box: BoxView }) {
   const prize = (
     <View style={styles.prizeInner}>
       {show3d && view.editedModelUrl ? (
-        <ModelViewer modelUrl={view.editedModelUrl} style={styles.viewer} />
+        <ModelViewer
+          modelUrl={view.editedModelUrl}
+          autoRotate
+          showLoading={!view.editedImageUrl}
+          onLoaded={() => {
+            imageCover.value = withTiming(0, { duration: 400 });
+          }}
+          style={styles.viewer}
+        />
       ) : null}
       {view.editedImageUrl ? (
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, cover]}>
