@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Image, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Keyboard, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ModelViewer } from "../../components/ModelViewer";
 import { api, type BoxView, type Id } from "../../lib/backend";
@@ -58,12 +58,16 @@ export function ShareScreen({ box }: { box: BoxView }) {
   if (sentTo) return <SentScreen box={box} sentTo={sentTo} />;
 
   return (
-    <View style={[styles.screen, { paddingHorizontal: s(18), paddingBottom: Math.max(insets.bottom, s(20)) }]}>
+    <Pressable
+      accessible={false}
+      onPress={Keyboard.dismiss}
+      style={[styles.screen, { paddingHorizontal: s(18), paddingBottom: Math.max(insets.bottom, s(20)) }]}
+    >
       <Header title="Share your moment" left="Cancel" onLeft={() => router.dismissTo("/")} />
 
       <RoughCard strokeWidth={stroke.width} style={{ marginTop: s(10) }}>
         <View style={[styles.cardHead, { paddingHorizontal: s(14), paddingVertical: s(10), gap: s(10) }]}>
-          <Avatar name={profile.nickname} color={box.senderColor} />
+          <Avatar name={profile.nickname} color={box.senderColor} size={s(34)} />
           <View style={styles.flex}>
             <Text style={[styles.nick, { fontSize: s(15) }]}>{profile.nickname}</Text>
             <Text style={[styles.sub, { fontSize: s(12) }]}>box {box.code}</Text>
@@ -94,7 +98,8 @@ export function ShareScreen({ box }: { box: BoxView }) {
             maxLength={200}
             submitBehavior="blurAndSubmit"
             returnKeyType="done"
-            style={[styles.caption, { fontSize: s(24), lineHeight: s(26.4), minHeight: s(52.8) }]}
+            scrollEnabled={false}
+            style={[styles.caption, { fontSize: s(24), lineHeight: s(27), minHeight: s(60) }]}
           />
         </View>
       </RoughCard>
@@ -112,7 +117,7 @@ export function ShareScreen({ box }: { box: BoxView }) {
         <TrottingBobo size={s(96)} style={{ marginLeft: -s(8) }} />
         <Button title="Share moment" onPress={send} busy={sending.busy} disabled={selected.size === 0 || inviting.busy} style={styles.grow} />
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -124,6 +129,7 @@ const styles = StyleSheet.create({
   nick: { fontFamily: fonts.heavy, color: colors.ink },
   sub: { fontFamily: fonts.body, color: colors.muted },
   stage: {
+    marginHorizontal: stroke.width + 1,
     backgroundColor: stageColors.bg,
     borderTopWidth: stroke.width,
     borderBottomWidth: stroke.width,

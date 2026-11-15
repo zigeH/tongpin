@@ -35,7 +35,7 @@ export function SentScreen({ box, sentTo }: { box: BoxView; sentTo?: string[] })
           <Text style={[styles.sub, { fontSize: s(15) }]}>Each friend gets their own copy to remix.</Text>
         ) : null}
         {box.receiverId ? null : (
-          <RoughCard strokeWidth={stroke.width} style={{ alignSelf: "stretch", padding: s(16), gap: s(6), alignItems: "center", marginTop: s(8), backgroundColor: colors.cream }}>
+          <RoughCard strokeWidth={stroke.width} fill={colors.cream} style={{ alignSelf: "stretch", padding: s(16), gap: s(6), alignItems: "center", marginTop: s(8) }}>
             <Text style={[styles.sub, { fontSize: s(13) }]}>Anyone can claim a copy with this code</Text>
             <Text selectable style={[styles.code, { fontSize: s(40), letterSpacing: s(6) }]}>
               {box.code}

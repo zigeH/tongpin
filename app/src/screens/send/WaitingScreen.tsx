@@ -133,6 +133,7 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   cardTitle: { fontFamily: fonts.heavy, color: colors.ink },
   stage: {
+    marginHorizontal: stroke.width + 1,
     backgroundColor: stageColors.bg,
     borderTopWidth: stroke.width,
     borderBottomWidth: stroke.width,
