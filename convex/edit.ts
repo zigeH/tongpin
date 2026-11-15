@@ -12,17 +12,18 @@ const DEFAULT_IMAGE_MODEL = "gpt-image-2.6-flare";
 
 export function buildEditPrompt(instruction: string, hasExtraPhoto: boolean, direction?: string): string {
   return [
-    `The first image is a 3D object on a transparent background. Edit this object according to the user's request: "${instruction}".`,
+    "The first image is a 3D object on a transparent background.",
+    `Main goal: apply the user's request "${instruction}" so the change is obvious at first glance. The request overrides the object's original colors, materials and details wherever they conflict; a subtle, partial or barely visible change is a failure.`,
     direction ? `Art direction (follow closely): ${direction}` : "",
     hasExtraPhoto ? "Incorporate the subject from the second image into the object as part of it, not as a separate item." : "",
     "Requirements: the result is exactly one standalone object; any added items are physically attached to it or worn by it.",
-    "Show the whole object fully inside the frame with some empty margin, centered, same camera angle, scale and lighting as the input.",
-    "Keep the original object recognizable unless the request asks to transform it.",
+    "Keep the object's overall silhouette, proportions and pose, and the same camera angle and scale, so it is still clearly the same object, changed.",
+    "Show the whole object fully inside the frame with some empty margin, centered.",
     "Transparent background: no floor, no ground shadow, no scenery, no props, no text, no frame or border.",
   ].filter(Boolean).join(" ");
 }
 
-async function openaiEdit(prompt: string, images: Blob[]): Promise<Blob> {
+export async function openaiEdit(prompt: string, images: Blob[]): Promise<Blob> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY 未配置");
   const form = new FormData();
