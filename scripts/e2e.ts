@@ -119,8 +119,13 @@ type Ctx = {
   edited?: true;
   sealed?: true;
   opened?: true;
-  replyBoxId?: Id<"boxes">;
-  replyClaimed?: true;
+  remixBoxId?: Id<"boxes">;
+  remixOpened?: true;
+  shareBoxId?: Id<"boxes">;
+  shareCode?: string;
+  copyForB?: Id<"boxes">;
+  copyClaimed?: true;
+  userC?: Id<"users">;
 };
 
 const POLL_MS = 1000;
@@ -279,52 +284,159 @@ export function storySteps(client: ConvexHttpClient): Step<Ctx>[] {
       },
     },
     {
-      name: "8. A reply；B 的 inbox 出现 action 为 claim 的盒子，B 用新码认领成功",
+      name: "8a. A remixBack：新盒子 sender B、receiver A、claimed；A 的 inbox 是 edit；重复调用返回同一个",
       needs: ["boxId", "userA", "userB", "opened"],
       run: async (ctx) => {
-        const { boxId: replyBoxId } = await client.mutation(api.boxes.reply, {
-          boxId: ctx.boxId!,
-          userId: ctx.userA!,
-          senderNote: "e2e：回礼",
-        });
-        check(replyBoxId !== ctx.boxId, "reply 返回了旧盒子的 boxId");
-        ctx.replyBoxId = replyBoxId;
-        const view = await client.query(api.boxes.get, { boxId: replyBoxId, viewerId: ctx.userB! });
-        check(view.status === "ready", `回礼盒子状态 ${view.status}，应为 ready`);
-        check(view.replyTo === ctx.boxId, "回礼盒子的 replyTo 不是旧盒子");
-        check(view.modelUrl, "回礼盒子没有 modelUrl");
-        const { received } = await client.query(api.boxes.inbox, { userId: ctx.userB! });
-        const item = received.find((box) => box._id === replyBoxId);
-        check(item, "B 的 inbox.received 里没有回礼盒子");
-        check(item.action === "claim", `action 为 ${item.action}，应为 claim`);
-        const claimed = await client.mutation(api.boxes.claim, { code: view.code, userId: ctx.userB! });
-        check(claimed.boxId === replyBoxId, `用新码认领返回 ${claimed.boxId}，应为 ${replyBoxId}`);
-        ctx.replyClaimed = true;
+        const { boxId: remixBoxId } = await client.mutation(api.boxes.remixBack, { boxId: ctx.boxId!, userId: ctx.userA! });
+        check(remixBoxId !== ctx.boxId, "remixBack 返回了旧盒子的 boxId");
+        const again = await client.mutation(api.boxes.remixBack, { boxId: ctx.boxId!, userId: ctx.userA! });
+        check(again.boxId === remixBoxId, `重复 remixBack 返回 ${again.boxId}，应为 ${remixBoxId}`);
+        const view = await client.query(api.boxes.get, { boxId: remixBoxId, viewerId: ctx.userA! });
+        check(view.status === "claimed", `接力盒子状态 ${view.status}，应为 claimed`);
+        check(view.senderId === ctx.userB && view.receiverId === ctx.userA, "接力盒子应为 sender B、receiver A");
+        check(view.replyTo === ctx.boxId, "接力盒子的 replyTo 不是旧盒子");
+        check(view.modelUrl && view.cutoutUrl, "接力盒子缺少 modelUrl / cutoutUrl");
+        const { received } = await client.query(api.boxes.inbox, { userId: ctx.userA! });
+        const item = received.find((box) => box._id === remixBoxId);
+        check(item?.action === "edit", `A 的 inbox 里接力盒子 action 为 ${item?.action}，应为 edit`);
+        ctx.remixBoxId = remixBoxId;
       },
     },
     {
-      name: "9a. 反向：A 认领自己的盒子报 INVALID_INPUT",
+      name: "8b. 接力：A submitEdit → edited → seal；B 的 inbox 出现 open，B 开盒看到 A 的改造",
+      needs: ["remixBoxId", "userA", "userB"],
+      run: async (ctx) => {
+        await client.mutation(api.boxes.submitEdit, {
+          boxId: ctx.remixBoxId!,
+          userId: ctx.userA!,
+          snapshotStorageId: await upload("E2E_SNAPSHOT"),
+          sceneShotStorageId: await upload("E2E_SCENE_SHOT"),
+          extraPhotoStorageId: await upload("E2E_EXTRA_PHOTO"),
+          cameraPose: { position: [0, 1, 3], target: [0, 0, 0], fov: 50 },
+          prompt: "再给它加一条围巾",
+        });
+        await waitFor(ctx.remixBoxId!, ctx.userA!, "edited", envMs("E2E_EDIT_TIMEOUT_MS", 120_000), (v) => v.status !== "editing");
+        const hidden = await client.query(api.boxes.get, { boxId: ctx.remixBoxId!, viewerId: ctx.userB! });
+        const leaked = presentFields(hidden, EDIT_FIELDS);
+        check(leaked.length === 0, `B 开盒前看到了：${leaked.join(", ")}`);
+        await client.mutation(api.boxes.seal, { boxId: ctx.remixBoxId!, userId: ctx.userA!, receiverNote: "e2e：接力回来了" });
+        const { received } = await client.query(api.boxes.inbox, { userId: ctx.userB! });
+        const item = received.find((box) => box._id === ctx.remixBoxId);
+        check(item?.action === "open", `B 的 inbox 里 action 为 ${item?.action}，应为 open`);
+        const opened = await client.mutation(api.boxes.open, { boxId: ctx.remixBoxId!, userId: ctx.userB! });
+        const missing = OPENED_FIELDS.filter((f) => !presentFields(opened, [f]).length);
+        check(missing.length === 0, `B 开盒返回缺少：${missing.join(", ")}`);
+        ctx.remixOpened = true;
+      },
+    },
+    {
+      name: "9. A 新建盒子；users.friends(A) 里有 B，带颜色",
+      needs: ["userA", "userB"],
+      run: async (ctx) => {
+        const friends = await client.query(api.users.friends, { userId: ctx.userA! });
+        check(friends.length === 1 && friends[0].userId === ctx.userB, `A 的好友应只有 B，实际 ${JSON.stringify(friends)}`);
+        check(friends[0].nickname === "E2E-B" && friends[0].color, "好友缺少昵称或颜色");
+        const { boxId } = await client.mutation(api.boxes.create, { userId: ctx.userA!, photoStorageId: await upload("E2E_PHOTO") });
+        const view = await waitFor(boxId, ctx.userA!, "ready", envMs("E2E_READY_TIMEOUT_MS", 60_000), (v) =>
+          v.status === "preparing" ? v.editError !== undefined : v.status !== "ready",
+        );
+        ctx.shareBoxId = boxId;
+        ctx.shareCode = view.code;
+      },
+    },
+    {
+      name: "10. A share 给 B：B 的 inbox 出现 claim，B 用副本的码认领；原盒子仍 ready",
+      needs: ["shareBoxId", "userA", "userB"],
+      run: async (ctx) => {
+        const { boxIds } = await client.mutation(api.boxes.share, {
+          boxId: ctx.shareBoxId!,
+          userId: ctx.userA!,
+          receiverIds: [ctx.userB!],
+          senderNote: "e2e：大家各改各的",
+        });
+        check(boxIds.length === 1 && boxIds[0] !== ctx.shareBoxId, "share 应返回一个新盒子");
+        const copy = await client.query(api.boxes.get, { boxId: boxIds[0], viewerId: ctx.userB! });
+        check(copy.status === "ready" && copy.receiverId === ctx.userB, "副本应为 ready 且 receiver 是 B");
+        check(copy.sharedFrom === ctx.shareBoxId && copy.senderNote === "e2e：大家各改各的", "副本的 sharedFrom / senderNote 不对");
+        check(copy.code !== ctx.shareCode, "副本和原盒子同一个码");
+        check(copy.senderColor && copy.receiverColor, "BoxView 缺少 senderColor / receiverColor");
+        const { received } = await client.query(api.boxes.inbox, { userId: ctx.userB! });
+        check(received.find((box) => box._id === boxIds[0])?.action === "claim", "B 的 inbox 里副本 action 不是 claim");
+        const claimed = await client.mutation(api.boxes.claim, { code: copy.code, userId: ctx.userB! });
+        check(claimed.boxId === boxIds[0], `B 认领副本返回 ${claimed.boxId}`);
+        const original = await client.query(api.boxes.get, { boxId: ctx.shareBoxId!, viewerId: ctx.userA! });
+        check(original.status === "ready" && original.shared === true && original.receiverId === undefined, "原盒子应保持 ready、shared、无 receiver");
+        ctx.copyForB = boxIds[0];
+        ctx.copyClaimed = true;
+      },
+    },
+    {
+      name: "11. Invite：C 用原盒子码认领得到自己的副本，重复认领同一个；B 用原盒子码拿回自己的副本",
+      needs: ["shareBoxId", "shareCode", "copyForB", "userA", "userB"],
+      run: async (ctx) => {
+        const c = await client.mutation(api.users.register, { nickname: "E2E-C" });
+        ctx.userC = c.userId;
+        const first = await client.mutation(api.boxes.claim, { code: ctx.shareCode!, userId: c.userId });
+        check(first.boxId !== ctx.shareBoxId && first.boxId !== ctx.copyForB, "C 认领应得到新副本");
+        const again = await client.mutation(api.boxes.claim, { code: ctx.shareCode!, userId: c.userId });
+        check(again.boxId === first.boxId, "C 重复认领建了新盒子");
+        const view = await client.query(api.boxes.get, { boxId: first.boxId, viewerId: c.userId });
+        check(view.status === "claimed" && view.receiverId === c.userId && view.senderId === ctx.userA, "C 的副本应为 claimed、A→C");
+        const bAgain = await client.mutation(api.boxes.claim, { code: ctx.shareCode!, userId: ctx.userB! });
+        check(bAgain.boxId === ctx.copyForB, "B 用原盒子码认领应返回 B 已有的副本");
+        const friends = await client.query(api.users.friends, { userId: ctx.userA! });
+        check(friends[0]?.userId === c.userId && friends.length === 2, "A 的好友应为 C、B（最近的在前）");
+      },
+    },
+    {
+      name: "12a. 反向：A 认领自己的盒子报 INVALID_INPUT",
       needs: ["code", "userA"],
       run: (ctx) => expectCode(client.mutation(api.boxes.claim, { code: ctx.code!, userId: ctx.userA! }), "INVALID_INPUT"),
     },
     {
-      name: "9b. 反向：edited 之前封箱报 WRONG_STATUS",
-      needs: ["replyBoxId", "replyClaimed", "userB"],
+      name: "12b. 反向：edited 之前封箱报 WRONG_STATUS",
+      needs: ["copyForB", "copyClaimed", "userB"],
       run: (ctx) =>
         expectCode(
-          client.mutation(api.boxes.seal, { boxId: ctx.replyBoxId!, userId: ctx.userB!, receiverNote: "太早了" }),
+          client.mutation(api.boxes.seal, { boxId: ctx.copyForB!, userId: ctx.userB!, receiverNote: "太早了" }),
           "WRONG_STATUS",
         ),
     },
     {
-      name: "9c. 反向：B 去开盒报 NOT_SENDER",
+      name: "12c. 反向：B 去开盒报 NOT_SENDER",
       needs: ["boxId", "userB"],
       run: (ctx) => expectCode(client.mutation(api.boxes.open, { boxId: ctx.boxId!, userId: ctx.userB! }), "NOT_SENDER"),
     },
     {
-      name: "9d. 反向：错误的盒子码报 BOX_NOT_FOUND",
+      name: "12d. 反向：错误的盒子码报 BOX_NOT_FOUND",
       needs: ["userB"],
       run: (ctx) => expectCode(client.mutation(api.boxes.claim, { code: "e2e-no-such-code", userId: ctx.userB! }), "BOX_NOT_FOUND"),
+    },
+    {
+      name: "12e. 反向：B 分享 A 的盒子报 NOT_SENDER",
+      needs: ["shareBoxId", "userB"],
+      run: (ctx) => expectCode(client.mutation(api.boxes.share, { boxId: ctx.shareBoxId!, userId: ctx.userB!, receiverIds: [] }), "NOT_SENDER"),
+    },
+    {
+      name: "12f. 反向：分享给自己报 INVALID_INPUT",
+      needs: ["shareBoxId", "userA"],
+      run: (ctx) =>
+        expectCode(client.mutation(api.boxes.share, { boxId: ctx.shareBoxId!, userId: ctx.userA!, receiverIds: [ctx.userA!] }), "INVALID_INPUT"),
+    },
+    {
+      name: "12g. 反向：分享已开盒的盒子报 WRONG_STATUS",
+      needs: ["boxId", "userA", "opened"],
+      run: (ctx) => expectCode(client.mutation(api.boxes.share, { boxId: ctx.boxId!, userId: ctx.userA!, receiverIds: [] }), "WRONG_STATUS"),
+    },
+    {
+      name: "12h. 反向：B 对 A 寄出的盒子 remixBack 报 NOT_SENDER",
+      needs: ["boxId", "userB", "opened"],
+      run: (ctx) => expectCode(client.mutation(api.boxes.remixBack, { boxId: ctx.boxId!, userId: ctx.userB! }), "NOT_SENDER"),
+    },
+    {
+      name: "12i. 反向：对没开盒的盒子 remixBack 报 WRONG_STATUS",
+      needs: ["copyForB", "userA"],
+      run: (ctx) => expectCode(client.mutation(api.boxes.remixBack, { boxId: ctx.copyForB!, userId: ctx.userA! }), "WRONG_STATUS"),
     },
   ];
 }

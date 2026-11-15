@@ -16,15 +16,17 @@
 | 名字 | 类型 | 参数 | 返回 |
 | --- | --- | --- | --- |
 | `users.register` | mutation | `nickname: string`（去空格后 1–20 字） | `{ userId, nickname, color }` |
+| `users.friends` | query | `userId`（不存在报 `USER_NOT_FOUND`） | `{ userId, nickname, color }[]`：和我互相寄过盒子的人，去重，最近往来在前 |
 | `files.generateUploadUrl` | mutation | 无 | `string`（上传地址） |
 | `boxes.create` | mutation | `userId`, `photoStorageId`, `senderNote?: string` | `{ boxId }` |
 | `boxes.get` | query | `boxId`, `viewerId?: userId` | `BoxView` |
 | `boxes.inbox` | query | `userId`（不存在报 `USER_NOT_FOUND`） | `{ received: (BoxView & { action })[]; sent: BoxView[] }` |
-| `boxes.claim` | mutation | `code: string`, `userId` | `{ boxId }` |
+| `boxes.claim` | mutation | `code: string`, `userId` | `{ boxId }`（认领分享母盒的码时，返回的是给你新建的副本，不是母盒） |
 | `boxes.submitEdit` | mutation | `boxId`, `userId`, `snapshotStorageId`, `sceneShotStorageId?`, `cameraPose: CameraPose`, `prompt: string`（1–200 字）, `extraPhotoStorageId?` | `null` |
 | `boxes.seal` | mutation | `boxId`, `userId`, `receiverNote: string` | `null` |
 | `boxes.open` | mutation | `boxId`, `userId` | `BoxView` |
-| `boxes.reply` | mutation | `boxId`（旧盒子）, `userId`, `senderNote?: string` | `{ boxId }`（新盒子） |
+| `boxes.share` | mutation | `boxId`（A 自己的 ready 原盒子）, `userId`, `receiverIds: Id<"users">[]`（可为空）, `senderNote?: string` | `{ boxIds: Id<"boxes">[] }`，和去重后的 `receiverIds` 一一对应 |
+| `boxes.remixBack` | mutation | `boxId`（A 寄出、已 opened 的旧盒子）, `userId`（A） | `{ boxId }`（接力盒子） |
 | `boxes.attachModel` | mutation | `boxId`, `kind: "original" \| "edited"`, `modelStorageId?` 或 `modelUrl?`（二选一）, `token?`（设了 `KARA_TOKEN` 时必须一致，否则报 `INVALID_INPUT`） | `null`（传 `modelUrl` 时是异步的：返回后后台下载再写回） |
 | `exports.save` | mutation | `boxId`, `storageId`（开箱视频） | `{ exportId }` |
 | `kara.pending` | query | 无 | `{ boxId, kind, imageUrl }[]`（给 Kara 轮询） |
@@ -32,7 +34,22 @@
 
 `boxes.attachModel`、`kara.pending` 给 Kara 用，`seed.demo` 给演示脚本用，App 不需要调。
 
-`inbox` 的 `action`：`ready` → `"claim"`，`claimed / editing / edited` → `"edit"`，我寄出且已 `sealed` → `"open"`。一个 sealed 盒子会同时出现在 received 和 sent。
+### 多选分享：`boxes.share`
+
+- 对每个好友建一个副本盒子：复用原盒子的照片、抠图、模型（不复制文件），`receiverId` 预填为好友，状态 `ready`，各自新的 6 位码，`sharedFrom` 指向原盒子，`senderNote` 写入（不传就沿用原盒子的留言）。好友在 inbox 里看到 `action: "claim"`，用副本的码（或原盒子的码）`boxes.claim` 后变 `claimed`。
+- 原盒子变成"分享母盒"：`shared: true`，永远停在 `ready`、没有 receiver，传了 `senderNote` 会更新它。Invite 分享的是原盒子的码：任何人用它 `boxes.claim` 都会得到一个属于自己的 `claimed` 副本，不会抢走别人的；同一个人重复认领返回同一个副本；已经被 share 选中的好友用原盒子码认领，拿到的就是给他的那个副本。
+- 可以多次调用（比如先只走 Invite，后来再加好友）；已经给过的好友返回已有副本，不重复建。
+- 母盒会出现在 A 的 `inbox.sent` 里（`ready`、无 receiver、`shared: true`），UI 可以按 `shared` 过滤或显示成"邀请"。
+- 错误：不是 sender → `NOT_SENDER`；原盒子还在 `preparing` → `NOT_READY`；其它状态、已有 receiver 的盒子、副本本身 → `WRONG_STATUS`；`receiverIds` 里有不存在的用户 → `USER_NOT_FOUND`；包含自己 → `INVALID_INPUT`。报错时什么都不写。
+- 没调过 `share` 的盒子，`claim` 行为不变：第一个认领的人拿走盒子本身。
+
+### 来回接力：`boxes.remixBack`
+
+A 打开 B 改好的盒子后，在 B 的结果上再改一次寄回给 B。新盒子：照片和抠图用旧盒子的 `editedImage`，模型用 `editedModel`，`senderId` = B，`receiverId` = A，状态直接是 `claimed`，`replyTo` 指向旧盒子。于是 A 走改造流程（`submitEdit` → `edited` → `seal`），封箱后 B 的 inbox 出现 `action: "open"`，B 开盒后可以对这个盒子再 `remixBack`，一直来回。同一个旧盒子重复调用返回同一个新盒子。错误：不是旧盒子的 sender → `NOT_SENDER`；旧盒子不是 `opened`（或缺少改造结果）→ `WRONG_STATUS`。
+
+原来的 `boxes.reply` 已删除，由 `remixBack` 取代。
+
+`inbox` 的 `action`：`ready` → `"claim"`，`claimed / editing / edited` → `"edit"`，我寄出且已 `sealed` → `"open"`。一个 sealed 盒子会同时出现在 received 和 sent。接力盒子对 A（receiver）是 `"edit"`，对 B（sender）在 sealed 之前只出现在 sent，sealed 后出现在 received 里且是 `"open"`。
 
 ## 类型
 
@@ -43,8 +60,11 @@ type CameraPose = { position: [number, number, number]; target: [number, number,
 
 type BoxView = {
   _id: Id<"boxes">; _creationTime: number; code: string; status: BoxStatus;
-  senderId: Id<"users">; senderNickname: string;
-  receiverId?: Id<"users">; receiverNickname?: string; replyTo?: Id<"boxes">;
+  senderId: Id<"users">; senderNickname: string; senderColor: string;
+  receiverId?: Id<"users">; receiverNickname?: string; receiverColor?: string;
+  replyTo?: Id<"boxes">;      // 接力盒子指向上一棒
+  shared?: true;              // 分享母盒（调过 boxes.share 的原盒子）
+  sharedFrom?: Id<"boxes">;   // 分享副本指向母盒
   senderNote?: string; photoUrl: string; cutoutUrl?: string; modelUrl?: string;
   // B 的改造：viewerId 是寄件人 A 且还没开盒时，下面这些全部省略
   snapshotUrl?: string; sceneShotUrl?: string; cameraPose?: CameraPose; prompt?: string;
@@ -62,7 +82,8 @@ TypeScript 里可以直接 `import type { BoxView, CameraPose } from "<后端>/c
 ```mermaid
 stateDiagram-v2
   [*] --> preparing: boxes.create
-  [*] --> ready: boxes.reply
+  [*] --> ready: boxes.share（给好友的副本）
+  [*] --> claimed: boxes.claim 母盒码（副本） / boxes.remixBack
   preparing --> ready: attachModel(original)
   ready --> claimed: boxes.claim
   claimed --> editing: boxes.submitEdit
@@ -79,12 +100,12 @@ stateDiagram-v2
 | --- | --- |
 | `USER_NOT_FOUND` | userId 不存在 |
 | `BOX_NOT_FOUND` | boxId 或盒子码不存在 |
-| `NOT_READY` | 认领时盒子还没 ready |
+| `NOT_READY` | 认领或分享时盒子还没 ready |
 | `ALREADY_CLAIMED` | 盒子已被别人认领（同一个人重复认领不报错） |
 | `NOT_RECEIVER` | 非 B 调用 B 才能调的函数 |
 | `NOT_SENDER` | 非 A 调用 A 才能调的函数 |
 | `WRONG_STATUS` | 当前状态不允许这个操作 |
-| `INVALID_INPUT` | 参数格式不对（prompt 为空、cameraPose 缺字段、文件类型不对、认领自己的盒子） |
+| `INVALID_INPUT` | 参数格式不对（prompt 为空、cameraPose 缺字段、文件类型不对、认领自己的盒子、分享给自己） |
 
 参数类型不对（比如 `kind: "bogus"`）会在校验层被拒，抛的是 Convex 的 `ArgumentValidationError`，不带 code。
 
