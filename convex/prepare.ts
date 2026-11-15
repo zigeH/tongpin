@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { fail } from "./lib/errors";
-import { removeBackground } from "./lib/fal";
+import { removeBackground } from "./lib/cutout";
 import { fakeCutoutBlob, isMock } from "./lib/mock";
 import { assertStatus } from "./lib/status";
 
