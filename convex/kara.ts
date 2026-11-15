@@ -85,6 +85,10 @@ export const request = internalAction({
       await ctx.scheduler.runAfter(0, internal.kara.fake, { boxId, kind });
       return null;
     }
+    if (process.env.MESHY_API_KEY) {
+      await ctx.scheduler.runAfter(0, internal.meshy.start, { boxId, kind });
+      return null;
+    }
     const webhook = process.env.KARA_WEBHOOK_URL;
     if (!webhook) return null;
     const imageUrl = await ctx.runQuery(internal.kara.imageUrlFor, { boxId, kind });
