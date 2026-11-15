@@ -126,6 +126,8 @@ stateDiagram-v2
 | `MOCK_AI` | 设为 `1` 时不调任何外部 AI 服务 |
 | `MOCK_3D` | 设为 `1` 时只假 3D（`kara.request` 走 `kara.fake`），抠图和改图仍走真实服务 |
 | `KARA_WEBHOOK_URL`、`KARA_TOKEN` | 可选：通知 Kara 的地址、`attachModel` 的校验口令 |
+| `MESHY_API_KEY` | 可选：设了且不在 MOCK 时，`kara.request` 改用 Meshy 生成 3D（`convex/meshy.ts`：整理参考图 → 三视图 + 风格图 → 多图生成 3D → 用风格图重新贴图，每 10 秒轮询一次，单次约 85 credits、约 3 分钟），不再通知 Kara；成功后照常走 `kara.download` 转存。每步失败重试 1 次，最终失败时原版写 `editError = "3D 生成失败：<原因>"` 停在 `preparing`，改后版按改图失败退回 `claimed`。没设时保持 Kara 行为 |
+| `OPENAI_VISION_MODEL` | Meshy 流程里看图写英文主体描述的模型，默认 `gpt-5.4-mini`；失败时退回通用描述，不影响生成 |
 | `EDIT_FAL_CUTOUT` | 设为 `1` 时，一句话改图的结果会再用 `lib/cutout.ts` 的 `removeBackground`（OpenAI）去一次背景；默认不设，直接存 OpenAI 返回的透明 PNG。名字是历史遗留，已经不走 fal |
 
 抠图不再用 fal，没有 `FAL_KEY` / `FAL_BG_MODEL`。

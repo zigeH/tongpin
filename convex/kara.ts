@@ -49,7 +49,14 @@ export const download = internalAction({
     const res = await fetch(url);
     if (!res.ok) throw new Error(`下载 3D 失败：HTTP ${res.status} ${url}`);
     const blob = new Blob([await res.arrayBuffer()], { type: "model/gltf-binary" });
-    const modelStorageId = await ctx.storage.store(blob);
+    const originalId = await ctx.storage.store(blob);
+    let modelStorageId = originalId;
+    try {
+      modelStorageId = await ctx.runAction(internal.glbCompress.compress, { storageId: originalId });
+    } catch (e) {
+      console.error("GLB 压缩失败，保存原文件", e);
+    }
+    if (modelStorageId !== originalId) await ctx.storage.delete(originalId);
     try {
       await ctx.runMutation(internal.kara.attach, { boxId, kind, modelStorageId });
     } catch (e) {
@@ -83,6 +90,10 @@ export const request = internalAction({
   handler: async (ctx, { boxId, kind }) => {
     if (isMock3D()) {
       await ctx.scheduler.runAfter(0, internal.kara.fake, { boxId, kind });
+      return null;
+    }
+    if (process.env.MESHY_API_KEY) {
+      await ctx.scheduler.runAfter(0, internal.meshy.start, { boxId, kind });
       return null;
     }
     const webhook = process.env.KARA_WEBHOOK_URL;
