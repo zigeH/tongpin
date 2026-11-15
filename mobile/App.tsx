@@ -14,9 +14,10 @@ function Items() {
   const [text, setText] = useState("");
 
   const submit = async () => {
-    if (!text.trim()) return;
-    await addItem({ text });
-    setText("");
+    const submitted = text;
+    if (!submitted.trim()) return;
+    await addItem({ text: submitted });
+    setText((current) => (current === submitted ? "" : current));
   };
 
   return (
