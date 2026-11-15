@@ -76,6 +76,8 @@ export function isGlb(bytes: Uint8Array): boolean {
 }
 
 function describeError(error: unknown): string {
+  const code = errorCode(error);
+  if (code !== undefined) return `${code}：${(error as { data: { message?: string } }).data.message ?? ""}`;
   if (error instanceof Error) return error.message.split("\n")[0];
   return String(error);
 }
@@ -113,6 +115,10 @@ type Ctx = {
   userB?: Id<"users">;
   boxId?: Id<"boxes">;
   code?: string;
+  claimed?: true;
+  edited?: true;
+  sealed?: true;
+  opened?: true;
   replyBoxId?: Id<"boxes">;
   replyClaimed?: true;
 };
@@ -208,11 +214,12 @@ export function storySteps(client: ConvexHttpClient): Step<Ctx>[] {
         const view = await client.query(api.boxes.get, { boxId: ctx.boxId!, viewerId: ctx.userB! });
         check(view.status === "claimed", `认领后状态 ${view.status}，应为 claimed`);
         check(view.receiverId === ctx.userB, "认领后 receiverId 不是 B");
+        ctx.claimed = true;
       },
     },
     {
       name: "4. B 上传定格图 submitEdit，轮询到 edited",
-      needs: ["boxId", "userB"],
+      needs: ["boxId", "userB", "claimed"],
       run: async (ctx) => {
         const snapshotStorageId = await upload("E2E_SNAPSHOT");
         const sceneShotStorageId = await upload("E2E_SCENE_SHOT");
@@ -231,21 +238,22 @@ export function storySteps(client: ConvexHttpClient): Step<Ctx>[] {
         );
         check(view.editedImageUrl, "edited 了但没有 editedImageUrl");
         check(view.editedModelUrl, "edited 了但没有 editedModelUrl");
+        ctx.edited = true;
       },
     },
     {
       name: "5. A 开盒前 boxes.get(viewerId = A) 看不到 B 的改造字段",
-      needs: ["boxId", "userA"],
+      needs: ["boxId", "userA", "edited"],
       run: async (ctx) => {
         const view = await client.query(api.boxes.get, { boxId: ctx.boxId!, viewerId: ctx.userA! });
-        check(view.status !== "opened", "盒子已经 opened，无法验证隐藏");
+        check(view.status === "edited", `状态 ${view.status}，应为 edited`);
         const leaked = presentFields(view, EDIT_FIELDS);
         check(leaked.length === 0, `A 看到了：${leaked.join(", ")}`);
       },
     },
     {
       name: "6. B seal；A 的 inbox 出现 action 为 open 的盒子",
-      needs: ["boxId", "userA", "userB"],
+      needs: ["boxId", "userA", "userB", "edited"],
       run: async (ctx) => {
         await client.mutation(api.boxes.seal, { boxId: ctx.boxId!, userId: ctx.userB!, receiverNote: "e2e：改好了，开吧" });
         const { received } = await client.query(api.boxes.inbox, { userId: ctx.userA! });
@@ -253,11 +261,12 @@ export function storySteps(client: ConvexHttpClient): Step<Ctx>[] {
         check(item, "A 的 inbox.received 里没有这个盒子");
         check(item.action === "open", `action 为 ${item.action}，应为 open`);
         check(item.status === "sealed", `状态 ${item.status}，应为 sealed`);
+        ctx.sealed = true;
       },
     },
     {
       name: "7. A open，能看到全部改造字段",
-      needs: ["boxId", "userA"],
+      needs: ["boxId", "userA", "sealed"],
       run: async (ctx) => {
         const opened = await client.mutation(api.boxes.open, { boxId: ctx.boxId!, userId: ctx.userA! });
         check(opened.status === "opened", `open 返回状态 ${opened.status}`);
@@ -266,11 +275,12 @@ export function storySteps(client: ConvexHttpClient): Step<Ctx>[] {
         const view = await client.query(api.boxes.get, { boxId: ctx.boxId!, viewerId: ctx.userA! });
         const missingInGet = OPENED_FIELDS.filter((f) => !presentFields(view, [f]).length);
         check(missingInGet.length === 0, `开盒后 boxes.get 缺少：${missingInGet.join(", ")}`);
+        ctx.opened = true;
       },
     },
     {
       name: "8. A reply；B 的 inbox 出现 action 为 claim 的盒子，B 用新码认领成功",
-      needs: ["boxId", "userA", "userB"],
+      needs: ["boxId", "userA", "userB", "opened"],
       run: async (ctx) => {
         const { boxId: replyBoxId } = await client.mutation(api.boxes.reply, {
           boxId: ctx.boxId!,
