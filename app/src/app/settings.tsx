@@ -3,49 +3,69 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CONVEX_URL } from "../lib/backend";
 import { useSession } from "../lib/session";
 import { useTask } from "../lib/useTask";
-import { Button, Muted, Screen, Section } from "../components/ui";
+import { Avatar, Button, Muted, Screen, Section } from "../components/ui";
 import { RegisterForm } from "../features/RegisterForm";
+import { colors, fonts, radii, stroke } from "../theme";
 
+// 一台手机扮演多个人：切换、注册新昵称、忘掉。
 export default function SettingsScreen() {
   const { profile, profiles, switchTo, forget } = useSession();
   const { busy, run } = useTask();
   return (
     <Screen>
-      <Section title="本机的身份（点一下切换）">
-        {profiles.length === 0 ? <Muted>还没有注册过</Muted> : null}
+      <Section title="Players on this phone">
+        {profiles.length === 0 ? <Muted>Nobody yet.</Muted> : null}
         {profiles.map((p) => {
           const current = p.userId === profile?.userId;
           return (
             <Pressable
               key={p.userId}
-              style={[styles.row, current && styles.rowCurrent]}
-              onPress={() => run(async () => { await switchTo(p.userId); router.dismissTo("/"); })}
+              accessibilityRole="button"
+              accessibilityState={{ selected: current }}
+              style={({ pressed }) => [styles.row, current && styles.rowCurrent, pressed && styles.pressed]}
+              onPress={() =>
+                run(async () => {
+                  await switchTo(p.userId);
+                  router.dismissTo("/");
+                })
+              }
             >
-              <View style={[styles.dot, { backgroundColor: p.color }]} />
-              <Text style={styles.name}>{p.nickname}</Text>
-              <Text style={styles.current}>{current ? "当前" : "切换"}</Text>
+              <Avatar name={p.nickname} color={p.color} size={36} />
+              <Text style={styles.name} numberOfLines={1}>
+                {p.nickname}
+              </Text>
+              <Text style={[styles.tag, current && styles.tagCurrent]}>{current ? "Playing" : "Switch"}</Text>
             </Pressable>
           );
         })}
       </Section>
-      <Section title="注册一个新昵称">
-        <RegisterForm onDone={() => router.dismissTo("/")} />
+      <Section title="Add a player">
+        <RegisterForm buttonTitle="Add player" onDone={() => router.dismissTo("/")} />
       </Section>
       {profile ? (
-        <Section title="当前身份">
-          <Muted>userId：{profile.userId}</Muted>
-          <Button title={`在本机忘掉「${profile.nickname}」`} kind="secondary" busy={busy} onPress={() => run(() => forget(profile.userId))} />
-        </Section>
+        <Button title={`Forget ${profile.nickname} on this phone`} kind="ghost" busy={busy} onPress={() => run(() => forget(profile.userId))} />
       ) : null}
-      <Muted>后端：{CONVEX_URL}</Muted>
+      <Muted style={styles.backend}>Backend: {CONVEX_URL}</Muted>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10, backgroundColor: "#fff" },
-  rowCurrent: { borderWidth: 2, borderColor: "#222" },
-  dot: { width: 14, height: 14, borderRadius: 7 },
-  name: { flex: 1, fontSize: 16 },
-  current: { color: "#007aff" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    minHeight: 64,
+    borderRadius: radii.row,
+    backgroundColor: colors.white,
+    borderWidth: stroke.width,
+    borderColor: colors.ink,
+  },
+  rowCurrent: { backgroundColor: colors.cream },
+  pressed: { transform: [{ scale: 0.985 }] },
+  name: { flex: 1, fontFamily: fonts.heavy, fontSize: 16, color: colors.ink },
+  tag: { fontFamily: fonts.heavy, fontSize: 14, color: colors.muted },
+  tagCurrent: { color: colors.ink },
+  backend: { fontSize: 12, textAlign: "center" },
 });
