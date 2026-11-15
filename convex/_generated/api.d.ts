@@ -12,6 +12,7 @@ import type * as boxes from "../boxes.js";
 import type * as edit from "../edit.js";
 import type * as exports from "../exports.js";
 import type * as files from "../files.js";
+import type * as glbCompress from "../glbCompress.js";
 import type * as impl_boxes_attachModel from "../impl/boxes/attachModel.js";
 import type * as impl_boxes_claim from "../impl/boxes/claim.js";
 import type * as impl_boxes_create from "../impl/boxes/create.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   edit: typeof edit;
   exports: typeof exports;
   files: typeof files;
+  glbCompress: typeof glbCompress;
   "impl/boxes/attachModel": typeof impl_boxes_attachModel;
   "impl/boxes/claim": typeof impl_boxes_claim;
   "impl/boxes/create": typeof impl_boxes_create;
