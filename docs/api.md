@@ -16,7 +16,8 @@
 | 名字 | 类型 | 参数 | 返回 |
 | --- | --- | --- | --- |
 | `users.register` | mutation | `nickname: string`（去空格后 1–20 字） | `{ userId, nickname, color }` |
-| `users.friends` | query | `userId`（不存在报 `USER_NOT_FOUND`） | `{ userId, nickname, color }[]`：和我互相寄过盒子的人，去重，最近往来在前 |
+| `users.login` | mutation | `nickname: string`（去空格后 1–20 字） | `{ userId, nickname, color }`：已有同名用户（先精确匹配，再不分大小写；多个时取最早创建的）就返回它，没有就新建 |
+| `users.friends` | query | `userId`（不存在报 `USER_NOT_FOUND`） | `{ userId, nickname, color }[]`：和我互相寄过盒子的人，加上 `friendships` 表里的显式好友，去重；有往来的按最近往来在前，只有显式关系的排在最后（按建立时间） |
 | `files.generateUploadUrl` | mutation | 无 | `string`（上传地址） |
 | `boxes.create` | mutation | `userId`, `photoStorageId`, `senderNote?: string` | `{ boxId }` |
 | `boxes.get` | query | `boxId`, `viewerId?: userId` | `BoxView` |
@@ -33,6 +34,12 @@
 | `seed.demo` | action | 可选素材 storageId：`photoId`, `cutoutId`, `modelId`, `snapshotId`, `sceneShotId`, `editedImageId`, `editedModelId`, `extraPhotoId` | `{ userAId, userBId, readyBox: { boxId, code }, sealedBox: { boxId, code } }` |
 
 `boxes.attachModel`、`kara.pending` 给 Kara 用，`seed.demo` 给演示脚本用，App 不需要调。
+
+### 用户名登录与预置好友
+
+- App 只要求输入用户名：调 `users.login`，有这个人就登录，没有就新建。`users.register`（每次都新建）保留兼容。
+- `users.seedDemoFriends` 是 internal mutation（幂等）：确保昵称 `kara`、`vincent` 的用户存在，并在 `friendships` 里给两人建一条好友关系，返回 `{ karaId, vincentId }`。
+- **部署后要跑一次**：`npx convex run users:seedDemoFriends`（重复跑没有副作用）。
 
 ### 多选分享：`boxes.share`
 
@@ -119,6 +126,8 @@ stateDiagram-v2
 | `MOCK_AI` | 设为 `1` 时不调任何外部 AI 服务 |
 | `MOCK_3D` | 设为 `1` 时只假 3D（`kara.request` 走 `kara.fake`），抠图和改图仍走真实服务 |
 | `KARA_WEBHOOK_URL`、`KARA_TOKEN` | 可选：通知 Kara 的地址、`attachModel` 的校验口令 |
+| `MESHY_API_KEY` | 可选：设了且不在 MOCK 时，`kara.request` 改用 Meshy 生成 3D（`convex/meshy.ts`：整理参考图 → 三视图 + 风格图 → 多图生成 3D → 用风格图重新贴图，每 10 秒轮询一次，单次约 85 credits、约 3 分钟），不再通知 Kara；成功后照常走 `kara.download` 转存。每步失败重试 1 次，最终失败时原版写 `editError = "3D 生成失败：<原因>"` 停在 `preparing`，改后版按改图失败退回 `claimed`。没设时保持 Kara 行为 |
+| `OPENAI_VISION_MODEL` | Meshy 流程里看图写英文主体描述的模型，默认 `gpt-5.4-mini`；失败时退回通用描述，不影响生成 |
 | `EDIT_FAL_CUTOUT` | 设为 `1` 时，一句话改图的结果会再用 `lib/cutout.ts` 的 `removeBackground`（OpenAI）去一次背景；默认不设，直接存 OpenAI 返回的透明 PNG。名字是历史遗留，已经不走 fal |
 
 抠图不再用 fal，没有 `FAL_KEY` / `FAL_BG_MODEL`。
