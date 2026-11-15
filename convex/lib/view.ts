@@ -15,9 +15,13 @@ export type BoxView = {
   status: BoxStatus;
   senderId: Id<"users">;
   senderNickname: string;
+  senderColor: string;
   receiverId?: Id<"users">;
   receiverNickname?: string;
+  receiverColor?: string;
   replyTo?: Id<"boxes">;
+  shared?: true;
+  sharedFrom?: Id<"boxes">;
   senderNote?: string;
   photoUrl: string;
   cutoutUrl?: string;
@@ -55,9 +59,13 @@ export async function toBoxView(
     status: box.status,
     senderId: box.senderId,
     senderNickname: sender?.nickname ?? "",
+    senderColor: sender?.color ?? "",
     receiverId: box.receiverId,
     receiverNickname: receiver?.nickname,
+    receiverColor: receiver?.color,
     replyTo: box.replyTo,
+    shared: box.shared ? true : undefined,
+    sharedFrom: box.sharedFrom,
     senderNote: box.senderNote,
     photoUrl: (await url(box.photoId)) ?? "",
     cutoutUrl: await url(box.cutoutId),

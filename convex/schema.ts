@@ -18,6 +18,9 @@ export default defineSchema({
     receiverId: v.optional(v.id("users")),
     status: boxStatus,
     replyTo: v.optional(v.id("boxes")),
+    // boxes.share 之后原盒子变成"分享母盒"：永远停在 ready，认领它的码会给认领人另建一个副本
+    shared: v.optional(v.boolean()),
+    sharedFrom: v.optional(v.id("boxes")),
     senderNote: v.optional(v.string()),
     // 原版
     photoId: v.id("_storage"),

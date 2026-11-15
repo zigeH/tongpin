@@ -6,4 +6,5 @@ export { claim } from "./impl/boxes/claim";
 export { submitEdit } from "./impl/boxes/submitEdit";
 export { seal } from "./impl/boxes/seal";
 export { open } from "./impl/boxes/open";
-export { reply } from "./impl/boxes/reply";
+export { share } from "./impl/boxes/share";
+export { remixBack } from "./impl/boxes/remixBack";
