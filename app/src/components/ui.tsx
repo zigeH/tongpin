@@ -14,7 +14,11 @@ import {
 
 export function Screen({ children }: { children: ReactNode }) {
   return (
-    <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+    >
       {children}
     </ScrollView>
   );

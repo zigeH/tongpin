@@ -31,9 +31,12 @@ npx expo prebuild --platform ios --no-install
 cd ios && pod install
 xcodebuild -workspace app.xcworkspace -scheme app -configuration Release \
   -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath build CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO build
 # 产物：app/ios/build/Build/Products/Release-iphonesimulator/app.app
 ```
+
+模拟器包要 ad-hoc 签名（上面的 `CODE_SIGN_IDENTITY=-`），不能用 `CODE_SIGNING_ALLOWED=NO`：不签名就没有 keychain entitlement，
+expo-secure-store 读不到，App 会一直停在启动转圈。
 
 真机包用 EAS（`npx eas-cli@latest build -p ios`）或 Xcode 签名，bundle id 是 `com.zigeh.tongpin`（见 app.json）。
 `ios/`、`android/` 是 prebuild 生成的，不进仓库，原生配置改 app.json。

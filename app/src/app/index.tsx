@@ -61,7 +61,12 @@ function Inbox({ userId }: { userId: BoxView["senderId"] }) {
           <Section title="收到的">
             {inbox.received.length === 0 ? <Muted>还没有</Muted> : null}
             {inbox.received.map((box) => (
-              <BoxRow key={box._id} box={box} who={`来自 ${box.senderNickname}`} action={ACTION_TEXT[box.action]} />
+              <BoxRow
+                key={box._id}
+                box={box}
+                who={box.action === "open" ? `${box.receiverNickname ?? "对方"} 改好寄回` : `来自 ${box.senderNickname}`}
+                action={ACTION_TEXT[box.action]}
+              />
             ))}
           </Section>
           <Section title="寄出的">

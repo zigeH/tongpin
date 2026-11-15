@@ -44,7 +44,7 @@ export default function NewBoxScreen() {
           </View>
         </View>
         {photo ? (
-          <Image source={{ uri: photo.uri }} style={[styles.preview, { aspectRatio: photo.width / photo.height }]} />
+          <Image source={{ uri: photo.uri }} resizeMode="contain" style={[styles.preview, { aspectRatio: photo.width / photo.height }]} />
         ) : (
           <Muted>会转成 JPEG、长边缩到 1536 再上传</Muted>
         )}
@@ -60,5 +60,5 @@ export default function NewBoxScreen() {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: 12 },
   flex: { flex: 1 },
-  preview: { width: "100%", borderRadius: 12, backgroundColor: "#eee" },
+  preview: { width: "100%", maxHeight: 320, borderRadius: 12, backgroundColor: "#eee" },
 });
