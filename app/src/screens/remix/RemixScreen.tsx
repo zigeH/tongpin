@@ -1,11 +1,12 @@
 import { useMutation } from "convex/react";
 import { router, Stack } from "expo-router";
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type RefObject } from "react";
 import {
   Alert,
   Animated,
   Easing,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -184,7 +185,28 @@ export function RemixScreen({ box }: { box: BoxView }) {
 type Other = { name: string; color?: string };
 
 function BottomBar({ children, bottomInset }: { children: ReactNode; bottomInset: number }) {
-  return <View style={[styles.bottom, { paddingBottom: Math.max(bottomInset, 12) + 8 }]}>{children}</View>;
+  const keyboard = useKeyboardVisible();
+  return <View style={[styles.bottom, { paddingBottom: keyboard ? 8 : Math.max(bottomInset, 12) + 8 }]}>{children}</View>;
+}
+
+function useKeyboardVisible() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardWillShow", () => setVisible(true));
+    const hide = Keyboard.addListener("keyboardWillHide", () => setVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return visible;
+}
+
+function useScrollEndOnKeyboard(scroll: RefObject<ComponentRef<typeof ScrollView> | null>) {
+  useEffect(() => {
+    const sub = Keyboard.addListener("keyboardDidShow", () => scroll.current?.scrollToEnd({ animated: true }));
+    return () => sub.remove();
+  }, [scroll]);
 }
 
 function AngleStep({
@@ -319,6 +341,7 @@ function PromptStep({
   const { s } = useScale();
   const { run } = useTask();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  useScrollEndOnKeyboard(scroll);
   const trimmed = prompt.trim();
 
   const addPhoto = () =>
@@ -364,7 +387,6 @@ function PromptStep({
             multiline
             maxLength={200}
             style={styles.promptInput}
-            onFocus={() => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 250)}
             accessibilityLabel="Remix prompt"
           />
           <BodyText size={12} weight="bold" color={colors.muted} style={styles.counter}>
@@ -467,6 +489,7 @@ function ResultStep({
   const { s } = useScale();
   const [view, setView] = useState<"3d" | "picture">(box.editedModelUrl ? "3d" : "picture");
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  useScrollEndOnKeyboard(scroll);
   const ready = note.trim().length > 0;
 
   return (
@@ -510,7 +533,6 @@ function ResultStep({
               multiline
               maxLength={200}
               style={styles.noteInput}
-              onFocus={() => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 250)}
               accessibilityLabel={`Note for ${other.name}`}
             />
           </View>
@@ -528,21 +550,17 @@ function ResultStep({
   );
 }
 
-// Bobo picks up the capsule, hops, and walks off to the right.
+// Bobo hops with the capsule, then trots off to the right.
 function SendOff({ other }: { other: Other }) {
   const { s, width } = useScale();
   const walk = useRef(new Animated.Value(0)).current;
-  const step = useLoop(700);
   useEffect(() => {
     Animated.sequence([
-      Animated.delay(500),
-      Animated.timing(walk, { toValue: 1, duration: 1700, easing: Easing.bezier(0.5, 0, 0.7, 0.4), useNativeDriver: true }),
+      Animated.delay(600),
+      Animated.timing(walk, { toValue: 1, duration: 1600, easing: Easing.in(Easing.quad), useNativeDriver: true }),
     ]).start();
   }, [walk]);
   const translateX = walk.interpolate({ inputRange: [0, 1], outputRange: [0, width] });
-  const stepY = step.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
-  const stepTilt = step.interpolate({ inputRange: [0, 1], outputRange: ["-2deg", "2deg"] });
-  const bobo220 = s(220);
 
   return (
     <Enter>
@@ -552,10 +570,8 @@ function SendOff({ other }: { other: Other }) {
       </View>
       <View style={[styles.sendStage, { height: s(380) }]}>
         <StageGround width={width - 44} />
-        <Animated.View style={{ position: "absolute", left: (width - 44 - bobo220) / 2, top: s(120), transform: [{ translateX }] }}>
-          <Animated.View style={{ transform: [{ translateY: stepY }, { rotate: stepTilt }] }}>
-            <Image source={bobo.hold} style={{ width: bobo220, height: bobo220 }} accessibilityLabel="Bobo carrying the box away" />
-          </Animated.View>
+        <Animated.View style={[styles.sendBobo, { top: s(110), transform: [{ translateX }] }]}>
+          <TrottingBobo source={bobo.hold} size={s(220)} period={700} lift={6} />
         </Animated.View>
         <TwinkleSparkle size={26} color={colors.sun} duration={1200} style={{ left: s(30), top: s(70) }} />
         <TwinkleSparkle size={20} color={colors.orange} duration={1000} delay={200} style={{ right: s(40), top: s(40) }} />
@@ -651,4 +667,5 @@ const styles = StyleSheet.create({
   noteBox: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, gap: 2 },
   noteInput: { fontFamily: fonts.hand, fontSize: 24, lineHeight: 26, color: colors.ink, minHeight: 56, textAlignVertical: "top", padding: 0 },
   sendStage: { marginHorizontal: 22, marginTop: 20, overflow: "hidden" },
+  sendBobo: { position: "absolute", left: 0, right: 0, alignItems: "center" },
 });
