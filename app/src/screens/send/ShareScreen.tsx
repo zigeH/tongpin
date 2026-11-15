@@ -99,7 +99,7 @@ export function ShareScreen({ box }: { box: BoxView }) {
             submitBehavior="blurAndSubmit"
             returnKeyType="done"
             scrollEnabled={false}
-            style={[styles.caption, { fontSize: s(24), lineHeight: s(27), minHeight: s(60) }]}
+            style={[styles.caption, { fontSize: s(24), minHeight: s(60) }]}
           />
         </View>
       </RoughCard>
