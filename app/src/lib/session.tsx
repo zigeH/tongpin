@@ -10,6 +10,7 @@ type Session = {
   profile: Profile | null;
   profiles: Profile[];
   register: (nickname: string) => Promise<Profile>;
+  login: (nickname: string) => Promise<Profile>;
   switchTo: (userId: Id<"users">) => Promise<void>;
   forget: (userId: Id<"users">) => Promise<void>;
 };
@@ -22,6 +23,7 @@ const SessionContext = createContext<Session | null>(null);
 // 没有登录：在本机 SecureStore 里记住注册过的昵称（可以有多个，方便一台手机扮演 A 和 B）。
 export function SessionProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation(api.users.register);
+  const loginMutation = useMutation(api.users.login);
   const [loaded, setLoaded] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentId, setCurrentId] = useState<Id<"users"> | null>(null);
@@ -57,6 +59,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [profiles, registerMutation, save],
   );
 
+  const login = useCallback(
+    async (nickname: string) => {
+      const profile = await loginMutation({ nickname });
+      const known = profiles.some((p) => p.userId === profile.userId);
+      await save(known ? profiles.map((p) => (p.userId === profile.userId ? profile : p)) : [...profiles, profile], profile.userId);
+      return profile;
+    },
+    [loginMutation, profiles, save],
+  );
+
   const switchTo = useCallback(async (userId: Id<"users">) => save(profiles, userId), [profiles, save]);
 
   const forget = useCallback(
@@ -73,10 +85,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       profiles,
       profile: profiles.find((p) => p.userId === currentId) ?? null,
       register,
+      login,
       switchTo,
       forget,
     }),
-    [currentId, forget, loaded, profiles, register, switchTo],
+    [currentId, forget, loaded, login, profiles, register, switchTo],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

@@ -11,7 +11,10 @@ export const cameraPose = v.object({
 });
 
 export default defineSchema({
-  users: defineTable({ nickname: v.string(), color: v.string(), createdAt: v.number() }),
+  users: defineTable({ nickname: v.string(), color: v.string(), createdAt: v.number() }).index("by_nickname", ["nickname"]),
+  friendships: defineTable({ userA: v.id("users"), userB: v.id("users"), createdAt: v.number() })
+    .index("by_userA", ["userA"])
+    .index("by_userB", ["userB"]),
   boxes: defineTable({
     code: v.string(),
     senderId: v.id("users"),
