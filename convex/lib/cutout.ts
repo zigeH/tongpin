@@ -1,4 +1,4 @@
-const DEFAULT_IMAGE_MODEL = "gpt-image-2.6-flare";
+const DEFAULT_CUTOUT_MODEL = "gpt-image-2.6-sunburst";
 
 export const CUTOUT_PROMPT = [
   "Remove the background from this photo and output only the main object on a fully transparent background.",
@@ -17,7 +17,7 @@ export async function removeBackground(imageUrl: string): Promise<Blob> {
   const type = image.type === "image/png" ? "image/png" : "image/jpeg";
 
   const form = new FormData();
-  form.append("model", process.env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL);
+  form.append("model", process.env.OPENAI_CUTOUT_MODEL || DEFAULT_CUTOUT_MODEL);
   form.append("prompt", CUTOUT_PROMPT);
   form.append("image[]", new Blob([image], { type }), type === "image/png" ? "photo.png" : "photo.jpg");
   form.append("background", "transparent");

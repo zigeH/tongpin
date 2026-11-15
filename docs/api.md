@@ -114,7 +114,8 @@ stateDiagram-v2
 | 名字 | 用途 |
 | --- | --- |
 | `OPENAI_API_KEY` | OpenAI 图像编辑，抠图（`prepare.run`）和一句话改图（`edit.run`）都用它 |
-| `OPENAI_IMAGE_MODEL` | 图像编辑模型，默认 `gpt-image-2.6-flare`，抠图和改图共用 |
+| `OPENAI_IMAGE_MODEL` | 一句话改图（`edit.run`）的模型，默认 `gpt-image-2.6-flare` |
+| `OPENAI_CUTOUT_MODEL` | 抠图（`lib/cutout.ts` 的 `removeBackground`，`prepare.run` 和 `EDIT_FAL_CUTOUT` 都用它）的模型，默认 `gpt-image-2.6-sunburst`：比 flare 更忠实原物，但慢约一倍 |
 | `MOCK_AI` | 设为 `1` 时不调任何外部 AI 服务 |
 | `MOCK_3D` | 设为 `1` 时只假 3D（`kara.request` 走 `kara.fake`），抠图和改图仍走真实服务 |
 | `KARA_WEBHOOK_URL`、`KARA_TOKEN` | 可选：通知 Kara 的地址、`attachModel` 的校验口令 |

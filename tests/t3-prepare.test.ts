@@ -53,7 +53,8 @@ function openaiFetch(outcomes: ("ok" | "fail")[]) {
 
 beforeEach(() => {
   vi.stubEnv("OPENAI_API_KEY", "sk-test");
-  vi.stubEnv("OPENAI_IMAGE_MODEL", "");
+  vi.stubEnv("OPENAI_CUTOUT_MODEL", "");
+  vi.stubEnv("OPENAI_IMAGE_MODEL", "gpt-image-2.6-flare");
 });
 
 afterEach(() => {
@@ -102,7 +103,7 @@ describe("prepare.run (real OpenAI path, fetch stubbed)", () => {
 
     expect(forms).toHaveLength(1);
     const form = forms[0];
-    expect(form.get("model")).toBe("gpt-image-2.6-flare");
+    expect(form.get("model")).toBe("gpt-image-2.6-sunburst");
     expect(form.get("background")).toBe("transparent");
     expect(form.get("output_format")).toBe("png");
     expect(form.has("input_fidelity")).toBe(false);
@@ -123,12 +124,12 @@ describe("prepare.run (real OpenAI path, fetch stubbed)", () => {
     expect((await scheduled()).map((j) => j.name)).toEqual(["kara:request"]);
   });
 
-  test("OPENAI_IMAGE_MODEL overrides the model", async () => {
-    vi.stubEnv("OPENAI_IMAGE_MODEL", "gpt-image-2.6-sunburst");
+  test("OPENAI_CUTOUT_MODEL overrides the cutout model, independent of OPENAI_IMAGE_MODEL", async () => {
+    vi.stubEnv("OPENAI_CUTOUT_MODEL", "gpt-image-2.5-flare");
     const forms = openaiFetch(["ok"]);
     const { t, boxId } = await setup();
     await t.action(internal.prepare.run, { boxId });
-    expect(forms[0].get("model")).toBe("gpt-image-2.6-sunburst");
+    expect(forms[0].get("model")).toBe("gpt-image-2.5-flare");
   });
 
   test("first failure is retried once and then succeeds", async () => {
