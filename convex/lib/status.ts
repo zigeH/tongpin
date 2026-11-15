@@ -8,7 +8,7 @@ export const modelKind = v.union(v.literal("original"), v.literal("edited"));
 export type ModelKind = "original" | "edited";
 
 export const ALLOWED_TRANSITIONS: Record<BoxStatus | "new", readonly BoxStatus[]> = {
-  new: ["preparing", "ready"],
+  new: ["preparing", "ready", "claimed"],
   preparing: ["ready"],
   ready: ["claimed"],
   claimed: ["editing"],

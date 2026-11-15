@@ -32,7 +32,7 @@ describe("assertStatus", () => {
   });
 
   test("transition table matches the plan", () => {
-    expect(ALLOWED_TRANSITIONS.new).toEqual(["preparing", "ready"]);
+    expect(ALLOWED_TRANSITIONS.new).toEqual(["preparing", "ready", "claimed"]);
     expect(ALLOWED_TRANSITIONS.editing).toEqual(["edited", "claimed"]);
     expect(ALLOWED_TRANSITIONS.edited).toEqual(["editing", "sealed"]);
     expect(ALLOWED_TRANSITIONS.opened).toEqual([]);
