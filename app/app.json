@@ -29,7 +29,8 @@
           "photosPermission": "选一张照片做成 3D 盲盒",
           "cameraPermission": "拍一样东西做成 3D 盲盒"
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }
