@@ -3,13 +3,19 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 import { Ball, Core, DEBRIS, Flash, Orbit, Ring, Stars, Twinkle, type DebrisPiece } from "./art";
 import { colors as C } from "../../theme";
-import { T, ease, loop, track } from "./timeline";
+import { LONG_AGO, T, ease, loop, track } from "./timeline";
 
-type Clock = { now: SharedValue<number>; tapAt: SharedValue<number> };
+export type Clock = { now: SharedValue<number>; tapAt: SharedValue<number> };
 
-function elapsed({ now, tapAt }: Clock) {
+// tapAt holds the frame timestamp of the tap, or one of the TAP states below.
+export const TAP = { sealed: -1, longAgo: -2, pending: -3 };
+
+export function elapsed({ now, tapAt }: Clock) {
   "worklet";
-  return tapAt.value < 0 ? -1 : now.value - tapAt.value;
+  if (tapAt.value === TAP.sealed) return -1;
+  if (tapAt.value === TAP.longAgo) return LONG_AGO + now.value;
+  if (tapAt.value === TAP.pending) return 0;
+  return now.value - tapAt.value;
 }
 
 const IMPLODE_STOPS = [0, 0.25, 0.4, 0.55, 1];

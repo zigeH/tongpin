@@ -58,5 +58,5 @@ export const T = {
   end: 2900,
 };
 
-// tapAt value meaning "opened long ago": every one-shot track is at its end.
+// Elapsed time used for "opened long ago": every one-shot track is at its end.
 export const LONG_AGO = 1e7;

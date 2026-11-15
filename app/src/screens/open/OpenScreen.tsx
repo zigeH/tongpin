@@ -15,10 +15,10 @@ import { ModelViewer } from "../../components/ModelViewer";
 import { api, type BoxView } from "../../lib/backend";
 import { useProfile } from "../../lib/session";
 import { useTask } from "../../lib/useTask";
-import { BigBang } from "./BigBang";
+import { BigBang, TAP, elapsed } from "./BigBang";
 import { colors as C, DESIGN_WIDTH as CANVAS_WIDTH, fonts as F, radii } from "../../theme";
 import { Button, NamePill, RoughCard } from "../../components/ui";
-import { LONG_AGO, T, ease, track } from "./timeline";
+import { T, ease, track } from "./timeline";
 
 // How long the edited picture stays over the 3D viewer after it mounts, until the viewer reports loading.
 const IMAGE_HANDOFF_MS = 2500;
@@ -39,10 +39,11 @@ export function OpenScreen({ box }: { box: BoxView }) {
   const [cardHeight, setCardHeight] = useState(320);
 
   const now = useSharedValue(0);
-  const tapAt = useSharedValue(box.status === "opened" ? -LONG_AGO : -1);
+  const tapAt = useSharedValue(box.status === "opened" ? TAP.longAgo : TAP.sealed);
   const imageCover = useSharedValue(1);
   useFrameCallback((frame) => {
-    now.value = frame.timeSinceFirstFrame;
+    now.value = frame.timestamp;
+    if (tapAt.value === TAP.pending) tapAt.value = frame.timestamp;
   });
 
   const view = box.status === "opened" ? box : (openedBox ?? box);
@@ -55,7 +56,7 @@ export function OpenScreen({ box }: { box: BoxView }) {
   const play = () => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
-    tapAt.value = reduceMotion ? now.value - LONG_AGO : now.value;
+    tapAt.value = reduceMotion ? TAP.longAgo : TAP.pending;
     setPhase("opening");
     later(reduceMotion ? 0 : T.end, () => setPhase("opened"));
     later(reduceMotion ? 0 : T.prize.delay, () => setShow3d(true));
@@ -69,7 +70,7 @@ export function OpenScreen({ box }: { box: BoxView }) {
         setOpenedBox(await open({ boxId: box._id, userId }));
       } catch (error) {
         timers.current.forEach(clearTimeout);
-        tapAt.value = -1;
+        tapAt.value = TAP.sealed;
         setPhase("sealed");
         throw error;
       }
@@ -91,19 +92,16 @@ export function OpenScreen({ box }: { box: BoxView }) {
   const shareUnboxing = () =>
     Alert.alert("Coming soon", "Saving the unboxing as a video is on its way.");
 
-  const elapsed = () => {
-    "worklet";
-    return tapAt.value < 0 ? -1 : now.value - tapAt.value;
-  };
+  const clock = { now, tapAt };
   const sealedText = useAnimatedStyle(() => ({
-    opacity: elapsed() < 0 ? 1 : track(elapsed(), 0, 200, [0, 1], [1, 0], ease.out),
+    opacity: elapsed(clock) < 0 ? 1 : track(elapsed(clock), 0, 200, [0, 1], [1, 0], ease.out),
   }));
   const openedText = useAnimatedStyle(() => ({
-    opacity: track(elapsed(), T.opened.delay, T.opened.duration, [0, 1], [0, 1], ease.out, 0),
+    opacity: track(elapsed(clock), T.opened.delay, T.opened.duration, [0, 1], [0, 1], ease.out, 0),
   }));
   const card = useAnimatedStyle(() => ({
     transform: [
-      { translateY: track(elapsed(), T.card.delay, T.card.duration, [0, 1], [cardHeight * 1.15, 0], ease.rise, cardHeight * 1.15) },
+      { translateY: track(elapsed(clock), T.card.delay, T.card.duration, [0, 1], [cardHeight * 1.15, 0], ease.rise, cardHeight * 1.15) },
     ],
   }));
   const cover = useAnimatedStyle(() => ({ opacity: imageCover.value }));
@@ -150,7 +148,7 @@ export function OpenScreen({ box }: { box: BoxView }) {
           <Text style={styles.subtitle}>{view.editedModelUrl ? "Drag to spin it in 3D" : " "}</Text>
         </Animated.View>
 
-        <BigBang clock={{ now, tapAt }} onTapBall={tapBall} prize={prize} prizeTouchable={phase === "opened"} />
+        <BigBang clock={clock} onTapBall={tapBall} prize={prize} prizeTouchable={phase === "opened"} />
 
         <Animated.View
           style={[styles.card, card]}
