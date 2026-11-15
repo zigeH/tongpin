@@ -100,7 +100,7 @@ new GLTFLoader().load(
       const radius = size / 2;
       const vFov = THREE.MathUtils.degToRad(camera.fov);
       const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
-      const distance = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 0.92;
+      const distance = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.2;
       camera.position.set(0, distance * 0.22, distance).setLength(distance);
       controls.target.set(0, 0, 0);
     }
