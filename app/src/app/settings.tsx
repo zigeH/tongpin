@@ -7,7 +7,7 @@ import { Avatar, Button, Muted, Screen, Section } from "../components/ui";
 import { RegisterForm } from "../features/RegisterForm";
 import { colors, fonts, radii, stroke } from "../theme";
 
-// 一台手机扮演多个人：切换、注册新昵称、忘掉。
+// 一台手机扮演多个人：切换、用户名登录（没有就新建）、忘掉。
 export default function SettingsScreen() {
   const { profile, profiles, switchTo, forget } = useSession();
   const { busy, run } = useTask();
@@ -39,8 +39,9 @@ export default function SettingsScreen() {
           );
         })}
       </Section>
-      <Section title="Add a player">
-        <RegisterForm buttonTitle="Add player" onDone={() => router.dismissTo("/")} />
+      <Section title="Log in as another player">
+        <RegisterForm buttonTitle="Log in" onDone={() => router.dismissTo("/")} />
+        <Muted>Type a username to log in. If nobody has it yet, a new player is created.</Muted>
       </Section>
       {profile ? (
         <Button title={`Forget ${profile.nickname} on this phone`} kind="ghost" busy={busy} onPress={() => run(() => forget(profile.userId))} />

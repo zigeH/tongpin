@@ -16,7 +16,8 @@
 | 名字 | 类型 | 参数 | 返回 |
 | --- | --- | --- | --- |
 | `users.register` | mutation | `nickname: string`（去空格后 1–20 字） | `{ userId, nickname, color }` |
-| `users.friends` | query | `userId`（不存在报 `USER_NOT_FOUND`） | `{ userId, nickname, color }[]`：和我互相寄过盒子的人，去重，最近往来在前 |
+| `users.login` | mutation | `nickname: string`（去空格后 1–20 字） | `{ userId, nickname, color }`：已有同名用户（先精确匹配，再不分大小写；多个时取最早创建的）就返回它，没有就新建 |
+| `users.friends` | query | `userId`（不存在报 `USER_NOT_FOUND`） | `{ userId, nickname, color }[]`：和我互相寄过盒子的人，加上 `friendships` 表里的显式好友，去重；有往来的按最近往来在前，只有显式关系的排在最后（按建立时间） |
 | `files.generateUploadUrl` | mutation | 无 | `string`（上传地址） |
 | `boxes.create` | mutation | `userId`, `photoStorageId`, `senderNote?: string` | `{ boxId }` |
 | `boxes.get` | query | `boxId`, `viewerId?: userId` | `BoxView` |
@@ -33,6 +34,12 @@
 | `seed.demo` | action | 可选素材 storageId：`photoId`, `cutoutId`, `modelId`, `snapshotId`, `sceneShotId`, `editedImageId`, `editedModelId`, `extraPhotoId` | `{ userAId, userBId, readyBox: { boxId, code }, sealedBox: { boxId, code } }` |
 
 `boxes.attachModel`、`kara.pending` 给 Kara 用，`seed.demo` 给演示脚本用，App 不需要调。
+
+### 用户名登录与预置好友
+
+- App 只要求输入用户名：调 `users.login`，有这个人就登录，没有就新建。`users.register`（每次都新建）保留兼容。
+- `users.seedDemoFriends` 是 internal mutation（幂等）：确保昵称 `kara`、`vincent` 的用户存在，并在 `friendships` 里给两人建一条好友关系，返回 `{ karaId, vincentId }`。
+- **部署后要跑一次**：`npx convex run users:seedDemoFriends`（重复跑没有副作用）。
 
 ### 多选分享：`boxes.share`
 

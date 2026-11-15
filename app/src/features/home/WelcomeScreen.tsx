@@ -31,7 +31,7 @@ export function WelcomeScreen() {
       </View>
       <View style={styles.form}>
         <RegisterForm />
-        <Muted style={styles.hint}>Friends will see this name on the boxes you send.</Muted>
+        <Muted style={styles.hint}>Type your username to log in. New name? We'll make you an account.</Muted>
       </View>
     </KeyboardAvoidingView>
   );
