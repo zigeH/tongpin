@@ -18,7 +18,7 @@ export function HomeScreen({ profile }: { profile: Profile }) {
   const items = inbox ? toHomeItems(inbox) : [];
   const open = (item: HomeItem) => {
     if (item.route === "invite") Share.share({ message: `Open my Bobo box! Box code: ${item.code}` });
-    else router.push(item.route === "arrived" ? `/arrived/${item.boxId}` : `/box/${item.boxId}`);
+    else router.push(item.route === "arrived" ? `/arrived/${item.boxId}` : item.route === "photo" ? `/photo/${item.boxId}` : `/box/${item.boxId}`);
   };
 
   return (

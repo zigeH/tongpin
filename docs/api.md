@@ -60,7 +60,7 @@ A 打开 B 改好的盒子后，在 B 的结果上再改一次寄回给 B。新�
 
 原来的 `boxes.reply` 已删除，由 `remixBack` 取代。
 
-`inbox` 的 `action`：`ready` → `"claim"`，`claimed / editing / edited` → `"edit"`，我寄出且已 `sealed` → `"open"`。一个 sealed 盒子会同时出现在 received 和 sent。接力盒子对 A（receiver）是 `"edit"`，对 B（sender）在 sealed 之前只出现在 sent，sealed 后出现在 received 里且是 `"open"`。
+`inbox` 的 `action`：`ready` → `"claim"`，`claimed / editing / edited` → `"edit"`，我寄出且已 `sealed` → `"open"`，我改造并已 `sealed`（对方还没开）→ `"photo"`（App 里引导先和改后的 3D 合影）。一个 sealed 盒子会同时出现在 received 和 sent。接力盒子对 A（receiver）是 `"edit"`，对 B（sender）在 sealed 之前只出现在 sent，sealed 后出现在 received 里且是 `"open"`。
 
 ## 类型
 

@@ -4,7 +4,8 @@ import { fail } from "../../lib/errors";
 import type { BoxStatus } from "../../lib/status";
 import { toBoxView, type BoxView } from "../../lib/view";
 
-export type InboxAction = "claim" | "edit" | "open";
+// photo：我改造并封好的盒子，对方还没开，可以先和改后的 3D 合影（开盒后对方能看到）。
+export type InboxAction = "claim" | "edit" | "open" | "photo";
 
 const LIMIT = 50;
 
@@ -13,6 +14,7 @@ const RECEIVER_ACTIONS: Partial<Record<BoxStatus, InboxAction>> = {
   claimed: "edit",
   editing: "edit",
   edited: "edit",
+  sealed: "photo",
 };
 
 export const inbox = query({
@@ -30,6 +32,7 @@ export const inbox = query({
           q.eq(q.field("status"), "claimed"),
           q.eq(q.field("status"), "editing"),
           q.eq(q.field("status"), "edited"),
+          q.eq(q.field("status"), "sealed"),
         ),
       )
       .take(LIMIT);
@@ -53,7 +56,7 @@ export const inbox = query({
       received: await Promise.all(
         received.map(async (box) => ({
           ...(await toBoxView(ctx, box, userId)),
-          action: box.status === "sealed" ? ("open" as const) : RECEIVER_ACTIONS[box.status]!,
+          action: box.status === "sealed" && box.senderId === userId ? ("open" as const) : RECEIVER_ACTIONS[box.status]!,
         })),
       ),
       sent: await Promise.all(sent.map((box) => toBoxView(ctx, box, userId))),
