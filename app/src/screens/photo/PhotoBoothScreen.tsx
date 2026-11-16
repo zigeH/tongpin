@@ -1,11 +1,12 @@
 import { useMutation } from "convex/react";
 import { Stack, router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { api, type BoxView } from "../../lib/backend";
 import { useProfile } from "../../lib/session";
+import { openRealAR } from "../../lib/ar";
 import { useUpload } from "../../lib/upload";
 import { useTask } from "../../lib/useTask";
 import { photoBoothHtml } from "../../components/viewer3d/photoBoothHtml";
@@ -50,16 +51,6 @@ export function PhotoBoothScreen({ box }: { box: BoxView }) {
 
   const js = (code: string) => web.current?.injectJavaScript(`${code}; true;`);
 
-  const openRealAR = () => {
-    if (Platform.OS === "ios") {
-      if (!usdzUrl) { Alert.alert("Real AR isn't ready", "This model has no USDZ file yet."); return; }
-      // Safari 打开 usdz 直接进入 AR Quick Look（自带拍照/录像）
-      Linking.openURL(usdzUrl);
-    } else if (modelUrl) {
-      const intent = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(modelUrl)}&mode=ar_preferred#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(modelUrl)};end;`;
-      Linking.openURL(intent);
-    }
-  };
 
   const keep = () =>
     run(async () => {
@@ -111,7 +102,7 @@ export function PhotoBoothScreen({ box }: { box: BoxView }) {
         <Pill label="Close" onPress={() => router.back()} />
         <View style={styles.row}>
           <Pill label={fur ? "Fuzz on" : "Fuzz off"} onPress={() => { js(`window.setFur(${!fur})`); setFur(!fur); }} />
-          <Pill label="Real AR" onPress={openRealAR} />
+          <Pill label="Real AR" onPress={() => openRealAR(modelUrl, usdzUrl)} />
         </View>
       </View>
       <Text style={[styles.hint, { top: insets.top + 64 }]} pointerEvents="none">

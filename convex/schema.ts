@@ -36,6 +36,10 @@ export default defineSchema({
     sceneShotId: v.optional(v.id("_storage")),
     cameraPose: v.optional(cameraPose),
     prompt: v.optional(v.string()),
+    // 贴在定格图上的道具名（"crown"、"sunglasses"…），和 prompt 一起交给导演和改图
+    props: v.optional(v.array(v.string())),
+    // "Remix it and seal the box"：改后 3D 一到就自动封箱
+    autoSeal: v.optional(v.boolean()),
     extraPhotoId: v.optional(v.id("_storage")),
     editedImageId: v.optional(v.id("_storage")),
     editedModelId: v.optional(v.id("_storage")),

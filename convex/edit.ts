@@ -10,9 +10,18 @@ import { assertStatus } from "./lib/status";
 
 const DEFAULT_IMAGE_MODEL = "gpt-image-2.6-flare";
 
-export function buildEditPrompt(instruction: string, hasExtraPhoto: boolean, direction?: string): string {
+// 用户的一句话加上贴上去的道具，合成导演和改图看到的请求
+export function remixRequest(prompt: string, props: string[] = []): string {
+  const stuck = props.length > 0 ? `add the ${props.join(", ")} stuck on it in the picture` : "";
+  return [prompt.trim(), stuck].filter(Boolean).join("; ");
+}
+
+export function buildEditPrompt(instruction: string, hasExtraPhoto: boolean, direction?: string, props: string[] = []): string {
   return [
-    "The first image is a 3D object on a transparent background.",
+    "The first image is a screenshot of a 3D object on a transparent background, at the angle the user picked.",
+    props.length > 0
+      ? `The flat sticker-like props drawn over it (${props.join(", ")}) show what to add and where: turn each into a real, physically attached part of the object at that spot, matching the object's 3D style and lighting; no flat stickers or outlines remain.`
+      : "",
     `Main goal: apply the user's request "${instruction}" so the change is obvious at first glance. The request overrides the object's original colors, materials and details wherever they conflict; a subtle, partial or barely visible change is a failure.`,
     direction ? `Art direction (follow closely): ${direction}` : "",
     hasExtraPhoto ? "Incorporate the subject from the second image into the object as part of it, not as a separate item." : "",
@@ -91,8 +100,9 @@ export const run = internalAction({
         if (snapshot === null) throw new Error("定格图不存在");
         const extra = box.extraPhotoId ? await ctx.storage.get(box.extraPhotoId) : null;
         // 导演：先把一句话扩写成具体的改图指导（失败时为 null，直接用原句）
-        const plan = await directRemix(box.prompt ?? "", extra !== null);
-        const edited = await openaiEdit(buildEditPrompt(box.prompt ?? "", extra !== null, plan?.direction), extra ? [snapshot, extra] : [snapshot]);
+        const request = remixRequest(box.prompt ?? "", box.props);
+        const plan = await directRemix(request, extra !== null);
+        const edited = await openaiEdit(buildEditPrompt(request, extra !== null, plan?.direction, box.props), extra ? [snapshot, extra] : [snapshot]);
         const rawId = await ctx.storage.store(edited);
         if (process.env.EDIT_FAL_CUTOUT !== "1") {
           editedImageId = rawId;
