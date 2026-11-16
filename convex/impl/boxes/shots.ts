@@ -21,13 +21,18 @@ export const saveShot = mutation({
   },
 });
 
-// 这个盒子的所有合影，新的在前
+// 这个盒子的合影，新的在前。
+// 寄件人开盒前只看得到自己拍的：收件人和改后 3D 的合影会剧透，开盒后才一起出现（同 toBoxView 的 hideEdits）。
 export const shots = query({
-  args: { boxId: v.id("boxes") },
-  handler: async (ctx, { boxId }) => {
+  args: { boxId: v.id("boxes"), viewerId: v.id("users") },
+  handler: async (ctx, { boxId, viewerId }) => {
+    const box = await ctx.db.get(boxId);
+    if (box === null) fail("BOX_NOT_FOUND");
+    const hideOthers = viewerId === box.senderId && box.status !== "opened";
     const rows = await ctx.db.query("shots").withIndex("by_box", (q) => q.eq("boxId", boxId)).order("desc").collect();
     const out = [];
     for (const row of rows) {
+      if (hideOthers && row.userId !== viewerId) continue;
       const url = await ctx.storage.getUrl(row.imageId);
       if (url === null) continue;
       const user = await ctx.db.get(row.userId);

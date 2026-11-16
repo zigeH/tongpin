@@ -6,6 +6,7 @@ import { useProfile } from "../../lib/session";
 import { useTask } from "../../lib/useTask";
 import { ModelViewer } from "../../components/ModelViewer";
 import { Button, Muted, Screen, Section } from "../../components/ui";
+import { PhotoStrip } from "../../screens/photo/PhotoStrip";
 import { BoxHeader, Picture } from "./common";
 
 // 开盒后的结果（A 看到 B 的改造）；A 可以在 B 的结果上再改一次寄回（boxes.remixBack）。
@@ -38,6 +39,7 @@ export function ResultView({ box, canReply }: { box: BoxView; canReply: boolean 
       {box.editedModelUrl ? (
         <Button kind="secondary" title="Take a photo with it" onPress={() => router.push(`/photo/${box._id}`)} />
       ) : null}
+      <PhotoStrip boxId={box._id} />
       {box.snapshotUrl ? <Picture uri={box.snapshotUrl} label="对方定格的角度" /> : null}
       {box.extraPhotoUrl ? <Picture uri={box.extraPhotoUrl} label="对方加的参考照片" /> : null}
       {canReply ? (
