@@ -1,7 +1,10 @@
 // three.js page that runs inside WKWebView. Loads the GLB straight from the Convex URL.
 // Messages to the app (window.ReactNativeWebView.postMessage, JSON):
 //   { type: "loaded" } | { type: "progress", ratio } | { type: "error", message } | { type: "snapshot", dataUrl, pose }
-// Calls from the app: window.capture(), window.setAutoRotate(on)
+//   | { type: "captureError", message }
+// Calls from the app: window.capture(overlays?), window.setAutoRotate(on)
+// overlays: [{ svg, x, y, size }] stickers drawn over the frame; x/y are the center as fractions of the viewport,
+// size is the side as a fraction of its width.
 import type { CameraPose } from "../../lib/backend";
 import { DEFAULT_EXPOSURE, PLUSH_JS } from "./plushJs";
 
@@ -130,13 +133,41 @@ new GLTFLoader().load(
   },
 );
 
-window.capture = () => {
-  renderer.render(scene, camera);
-  post({
-    type: "snapshot",
-    dataUrl: renderer.domElement.toDataURL("image/png"),
-    pose: { position: camera.position.toArray(), target: controls.target.toArray(), fov: camera.fov },
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Couldn't draw a sticker"));
+    img.src = src;
   });
+}
+
+window.capture = async (overlays) => {
+  try {
+    renderer.render(scene, camera);
+    const frame = renderer.domElement;
+    let dataUrl = frame.toDataURL("image/png");
+    if (overlays && overlays.length) {
+      const out = document.createElement("canvas");
+      out.width = frame.width;
+      out.height = frame.height;
+      const ctx = out.getContext("2d");
+      ctx.drawImage(frame, 0, 0);
+      for (const o of overlays) {
+        const img = await loadImage("data:image/svg+xml;charset=utf-8," + encodeURIComponent(o.svg));
+        const side = o.size * out.width;
+        ctx.drawImage(img, o.x * out.width - side / 2, o.y * out.height - side / 2, side, side);
+      }
+      dataUrl = out.toDataURL("image/png");
+    }
+    post({
+      type: "snapshot",
+      dataUrl,
+      pose: { position: camera.position.toArray(), target: controls.target.toArray(), fov: camera.fov },
+    });
+  } catch (e) {
+    post({ type: "captureError", message: e && e.message ? e.message : String(e) });
+  }
 };
 
 window.addEventListener("resize", () => {

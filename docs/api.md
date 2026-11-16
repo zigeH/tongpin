@@ -23,7 +23,7 @@
 | `boxes.get` | query | `boxId`, `viewerId?: userId` | `BoxView` |
 | `boxes.inbox` | query | `userId`（不存在报 `USER_NOT_FOUND`） | `{ received: (BoxView & { action })[]; sent: BoxView[] }` |
 | `boxes.claim` | mutation | `code: string`, `userId` | `{ boxId }`（认领分享母盒的码时，返回的是给你新建的副本，不是母盒） |
-| `boxes.submitEdit` | mutation | `boxId`, `userId`, `snapshotStorageId`, `sceneShotStorageId?`, `cameraPose: CameraPose`, `prompt: string`（1–200 字）, `extraPhotoStorageId?` | `null` |
+| `boxes.submitEdit` | mutation | `boxId`, `userId`, `snapshotStorageId`, `sceneShotStorageId?`, `cameraPose: CameraPose`, `prompt: string`（1–200 字；传了 `props` 时可以为空）, `extraPhotoStorageId?`, `props?: string[]`（贴在定格图上的道具名，最多 8 个）, `seal?: boolean`（true 时改后 3D 一到就自动封箱） | `null` |
 | `boxes.seal` | mutation | `boxId`, `userId`, `receiverNote: string` | `null` |
 | `boxes.open` | mutation | `boxId`, `userId` | `BoxView` |
 | `boxes.share` | mutation | `boxId`（A 自己的 ready 原盒子）, `userId`, `receiverIds: Id<"users">[]`（可为空）, `senderNote?: string` | `{ boxIds: Id<"boxes">[] }`，和去重后的 `receiverIds` 一一对应 |
@@ -49,6 +49,10 @@
 - 母盒会出现在 A 的 `inbox.sent` 里（`ready`、无 receiver、`shared: true`），UI 可以按 `shared` 过滤或显示成"邀请"。
 - 错误：不是 sender → `NOT_SENDER`；原盒子还在 `preparing` → `NOT_READY`；其它状态、已有 receiver 的盒子、副本本身 → `WRONG_STATUS`；`receiverIds` 里有不存在的用户 → `USER_NOT_FOUND`；包含自己 → `INVALID_INPUT`。报错时什么都不写。
 - 没调过 `share` 的盒子，`claim` 行为不变：第一个认领的人拿走盒子本身。
+
+### 一步改造并封箱：`submitEdit` 的 `props` / `seal`
+
+App 的 Remix 页（"Remix it and seal the box"）在 3D WebView 里把当前视角连同贴上去的道具合成一张透明 PNG 作为 `snapshotStorageId`，同时传 `props`（道具名）和 `seal: true`。`edit.run` 把一句话和道具名合成请求交给导演（remix-director），改图提示里要求把画上去的道具变成真正长在物体上的部件；改后 3D 写回时，`seal: true` 的盒子直接 `editing → sealed`（`receiverNote` 为空串、写 `sealedAt`），不停在 `edited`。改图或 3D 失败照旧退回 `claimed` 并写 `editError`。`BoxView` 多了 `props?: string[]`、`autoSeal?: true`（和其它改造字段一样，寄件人开盒前看不到）。
 
 ### 来回接力：`boxes.remixBack`
 

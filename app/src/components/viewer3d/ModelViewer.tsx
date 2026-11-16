@@ -7,15 +7,19 @@ import { viewerHtml } from "./viewerHtml";
 
 export type Snapshot = { pngBase64: string; pose: CameraPose };
 
+// A sticker composited over the captured frame: center x/y as fractions of the viewer, side as a fraction of its width.
+export type CaptureOverlay = { svg: string; x: number; y: number; size: number };
+
 export type ModelViewerHandle = {
-  // Freeze: transparent PNG of the current view plus the camera pose.
-  capture: () => Promise<Snapshot>;
+  // Freeze: transparent PNG of the current view (plus any overlays drawn on top) and the camera pose.
+  capture: (overlays?: CaptureOverlay[]) => Promise<Snapshot>;
 };
 
 type Message =
   | { type: "loaded" }
   | { type: "progress"; ratio: number }
   | { type: "error"; message: string }
+  | { type: "captureError"; message: string }
   | { type: "snapshot"; dataUrl: string; pose: CameraPose };
 
 type Props = {
@@ -67,14 +71,14 @@ export function ModelViewer({
   }, [autoRotate]);
 
   useImperativeHandle(ref, () => ({
-    capture: () =>
+    capture: (overlays = []) =>
       new Promise<Snapshot>((resolve, reject) => {
         if (state !== "loaded") {
           reject(new Error("The 3D model is still loading."));
           return;
         }
         pending.current = { resolve, reject };
-        webView.current?.injectJavaScript("window.capture && window.capture(); true;");
+        webView.current?.injectJavaScript(`window.capture && window.capture(${JSON.stringify(overlays)}); true;`);
       }),
   }));
 
@@ -86,6 +90,10 @@ export function ModelViewer({
     }
     if (message.type === "error") {
       setState("error");
+      pending.current?.reject(new Error(message.message));
+      pending.current = null;
+    }
+    if (message.type === "captureError") {
       pending.current?.reject(new Error(message.message));
       pending.current = null;
     }

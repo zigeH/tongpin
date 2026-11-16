@@ -32,6 +32,8 @@ export type BoxView = {
   sceneShotUrl?: string;
   cameraPose?: CameraPose;
   prompt?: string;
+  props?: string[];
+  autoSeal?: true;
   extraPhotoUrl?: string;
   editedImageUrl?: string;
   editedModelUrl?: string;
@@ -84,6 +86,8 @@ export async function toBoxView(
       sceneShotUrl: await url(box.sceneShotId),
       cameraPose: box.cameraPose as CameraPose | undefined,
       prompt: box.prompt,
+      props: box.props,
+      autoSeal: box.autoSeal ? true : undefined,
       extraPhotoUrl: await url(box.extraPhotoId),
       editedImageUrl: await url(box.editedImageId),
       editedModelUrl: await url(box.editedModelId),

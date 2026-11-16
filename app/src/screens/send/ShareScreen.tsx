@@ -14,7 +14,7 @@ import { SentScreen } from "./SentScreen";
 import { colors, fonts, stroke, useScale } from "../../theme";
 
 export function inviteMessage(code: string) {
-  return `I packed a little 3D moment for you! Open 一起搭 and enter box code ${code} to remix it.`;
+  return `I packed a little 3D moment for you! Tap tongpin://c/${code} to remix it, or open 一起搭 and enter box code ${code}.`;
 }
 
 // 设计稿 2-send：3D 预览 + caption（senderNote）+ 好友多选（users.friends）+ Invite（系统分享盒子码）→ boxes.share

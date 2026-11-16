@@ -1,1 +1,1 @@
-export { ModelViewer, type ModelViewerHandle, type Snapshot } from "./ModelViewer";
+export { ModelViewer, type CaptureOverlay, type ModelViewerHandle, type Snapshot } from "./ModelViewer";

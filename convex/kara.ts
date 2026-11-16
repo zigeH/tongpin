@@ -32,7 +32,8 @@ export async function attachToBox(
   if (kind === "original") {
     await ctx.db.patch(boxId, { modelId: modelStorageId, modelUsdzId: usdzStorageId, status: "ready", editError: undefined });
   } else {
-    await ctx.db.patch(boxId, { editedModelId: modelStorageId, editedUsdzId: usdzStorageId, status: "edited" });
+    const sealed = box.autoSeal ? { status: "sealed" as const, sealedAt: Date.now(), receiverNote: "" } : { status: "edited" as const };
+    await ctx.db.patch(boxId, { editedModelId: modelStorageId, editedUsdzId: usdzStorageId, ...sealed });
   }
 }
 

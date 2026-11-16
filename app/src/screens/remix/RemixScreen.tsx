@@ -2,12 +2,12 @@ import { useMutation } from "convex/react";
 import { router, Stack } from "expo-router";
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type RefObject } from "react";
 import {
-  Alert,
   Animated,
   Easing,
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -17,39 +17,39 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Path, SvgXml } from "react-native-svg";
 import { api, type BoxView } from "../../lib/backend";
-import { pickImage, toUploadableJpeg, type LocalImage } from "../../lib/images";
+import { openRealAR } from "../../lib/ar";
 import { useProfile } from "../../lib/session";
 import { useUpload } from "../../lib/upload";
-import { useTask } from "../../lib/useTask";
 import { showError } from "../../lib/errors";
 import { colors, fonts, radii, stroke, useLoop, useScale } from "../../theme";
-import { BodyText, Bubble, Button, ErrorText, HandText, RoughCard, bobo } from "../../components/ui";
+import { Avatar, BodyText, Bubble, Button, ErrorText, HandText, RoughCard, bobo } from "../../components/ui";
 import { ModelViewer, type ModelViewerHandle, type Snapshot } from "../../components/viewer3d";
 import {
   Chip,
   Enter,
   Polaroid,
   STAGE_BG,
+  Sparkle,
   StageBackdrop,
   Title,
   TopBar,
   TrottingBobo,
   TwinkleSparkle,
-  ViewfinderCorners,
   useCycle,
   useFlash,
 } from "./parts";
+import { PROPS, propNames, type PlacedProp, type PropKind } from "./props";
 
-// The receiver's remix flow: spin the 3D → freeze an angle → one sentence (+ optional photo)
-// → Bobo remixes (status editing) → result in picture + 3D → try again or write a note → seal.
+// The receiver's remix page (design 2-remix): the friend's 3D on top, stick props on it and/or write one line,
+// then "Remix it and seal the box" captures the 3D view as it stands (angle + props) and submits it with
+// seal: true, so the box seals itself once Bobo's remixed 3D lands.
+// Boxes left in "edited" by the older flow still get the result + note + seal step.
 // Serves both a claimed gift box and a remixBack relay box (sender = the other person).
 
-const SUGGESTIONS = ["make it gold", "add a tiny hat", "turn it into a cake", "space version", "make it fluffy"];
+const SUGGESTIONS = ["Make it cozy", "Space theme", "Make it tiny", "make it gold", "turn it into a cake"];
 const EDITING_LINES = ["Mixing paint…", "Adding magic…", "Polishing…", "Almost there…"];
-
-type Step = "angle" | "prompt";
 
 const SEND_OFF_HOP_MS = 900;
 const SEND_OFF_WALK_MS = 1500;
@@ -59,14 +59,11 @@ export function RemixScreen({ box }: { box: BoxView }) {
   const { userId } = useProfile();
   const submitEdit = useMutation(api.boxes.submitEdit);
   const seal = useMutation(api.boxes.seal);
-  const { uploadUri, uploadBase64 } = useUpload();
-  const { busy, run } = useTask();
+  const { uploadBase64 } = useUpload();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<Step>("angle");
   const [redo, setRedo] = useState(false);
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [extraPhoto, setExtraPhoto] = useState<LocalImage | null>(null);
+  const [placed, setPlaced] = useState<PlacedProp[]>([]);
   const [prompt, setPrompt] = useState(box.prompt ?? "");
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
@@ -84,28 +81,26 @@ export function RemixScreen({ box }: { box: BoxView }) {
       ? "editing"
       : box.status === "edited" && !redo
         ? "result"
-        : step === "prompt" && snapshot
-          ? "prompt"
-          : "angle";
+        : "compose";
 
-  const submit = () =>
-    run(async () => {
-      if (!snapshot) return;
-      const snapshotStorageId = await uploadBase64(snapshot.pngBase64, "image/png");
-      const extraPhotoStorageId = extraPhoto
-        ? await uploadUri((await toUploadableJpeg(extraPhoto)).uri, "image/jpeg")
-        : undefined;
-      await submitEdit({
-        boxId: box._id,
-        userId,
-        snapshotStorageId,
-        cameraPose: snapshot.pose,
-        prompt: prompt.trim(),
-        extraPhotoStorageId,
-      });
-    });
+  // Bobo trots off while the screenshot uploads; the remix and the seal finish on the server.
+  const remixAndSeal = async (shot: Snapshot) => {
+    setSending(true);
+    try {
+      await Promise.all([
+        (async () => {
+          const snapshotStorageId = await uploadBase64(shot.pngBase64, "image/png");
+          await submitEdit({ boxId: box._id, userId, snapshotStorageId, cameraPose: shot.pose, prompt: prompt.trim(), props: propNames(placed), seal: true });
+        })(),
+        new Promise((resolve) => setTimeout(resolve, SEND_OFF_MS)),
+      ]);
+      router.dismissTo("/");
+    } catch (error) {
+      setSending(false);
+      throw error;
+    }
+  };
 
-  // Play Bobo's departure first: once seal lands, the box route swaps this screen out.
   const sendOff = async () => {
     setSending(true);
     await new Promise((resolve) => setTimeout(resolve, SEND_OFF_MS));
@@ -118,42 +113,22 @@ export function RemixScreen({ box }: { box: BoxView }) {
     }
   };
 
-  const tryAgain = () => {
-    setRedo(true);
-    setStep(snapshot ? "prompt" : "angle");
-  };
-
   return (
     <View style={[styles.root, { paddingTop: insets.top + 4 }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        {phase === "angle" ? (
-          <AngleStep
-            key="angle"
+        {phase === "compose" ? (
+          <ComposeStep
+            key="compose"
             box={box}
             other={other}
-            onClose={redo ? () => setRedo(false) : close}
-            closeLabel={redo ? "Back" : "Close"}
-            onFrozen={(shot) => {
-              setSnapshot(shot);
-              setStep("prompt");
-            }}
-            bottomInset={insets.bottom}
-          />
-        ) : null}
-        {phase === "prompt" && snapshot ? (
-          <PromptStep
-            key="prompt"
-            box={box}
-            other={other}
-            snapshot={snapshot}
-            extraPhoto={extraPhoto}
-            onExtraPhoto={setExtraPhoto}
+            placed={placed}
+            onPlaced={setPlaced}
             prompt={prompt}
             onPrompt={setPrompt}
-            onBack={() => setStep("angle")}
-            onSubmit={submit}
-            busy={busy}
+            onClose={redo ? () => setRedo(false) : close}
+            closeLabel={redo ? "Back" : "Close"}
+            onRemix={remixAndSeal}
             bottomInset={insets.bottom}
           />
         ) : null}
@@ -161,10 +136,11 @@ export function RemixScreen({ box }: { box: BoxView }) {
           <EditingStep
             key="editing"
             other={other}
-            snapshotUri={snapshot ? `data:image/png;base64,${snapshot.pngBase64}` : box.snapshotUrl}
+            snapshotUri={box.snapshotUrl}
             editedImageUri={box.editedImageUrl}
-            extraPhotoUri={extraPhoto?.uri ?? box.extraPhotoUrl}
-            prompt={box.prompt ?? prompt}
+            extraPhotoUri={box.extraPhotoUrl}
+            prompt={box.prompt || (box.props ?? []).join(", ")}
+            autoSeal={box.autoSeal === true}
             onClose={close}
           />
         ) : null}
@@ -176,7 +152,7 @@ export function RemixScreen({ box }: { box: BoxView }) {
             note={note}
             onNote={setNote}
             onClose={close}
-            onTryAgain={tryAgain}
+            onTryAgain={() => setRedo(true)}
             onSeal={sendOff}
             bottomInset={insets.bottom}
           />
@@ -214,192 +190,172 @@ function useScrollEndOnKeyboard(scroll: RefObject<ComponentRef<typeof ScrollView
   }, [scroll]);
 }
 
-function AngleStep({
+function ComposeStep({
   box,
   other,
+  placed,
+  onPlaced,
+  prompt,
+  onPrompt,
   onClose,
   closeLabel,
-  onFrozen,
+  onRemix,
   bottomInset,
 }: {
   box: BoxView;
   other: Other;
+  placed: PlacedProp[];
+  onPlaced: (next: PlacedProp[]) => void;
+  prompt: string;
+  onPrompt: (text: string) => void;
   onClose: () => void;
   closeLabel: string;
-  onFrozen: (shot: Snapshot) => void;
+  onRemix: (shot: Snapshot) => Promise<void>;
   bottomInset: number;
 }) {
-  const { s, width } = useScale();
+  const { s } = useScale();
   const viewer = useRef<ModelViewerHandle>(null);
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  useScrollEndOnKeyboard(scroll);
   const [loaded, setLoaded] = useState(false);
-  const [freezing, setFreezing] = useState(false);
+  const [stage, setStage] = useState({ width: 0, height: 0 });
+  const [selected, setSelected] = useState<string | null>(null);
+  const [capturing, setCapturing] = useState(false);
   const flash = useFlash();
-  const stageWidth = width - 36;
-  const stageHeight = Math.round(Math.min(s(360), stageWidth * 1.05));
-  const relay = box.replyTo !== undefined;
+  const trimmed = prompt.trim();
+  const ready = loaded && (trimmed.length > 0 || placed.length > 0);
 
-  const freeze = async () => {
-    if (!viewer.current || freezing) return;
-    setFreezing(true);
+  const stick = (kind: PropKind) => {
+    const twins = placed.filter((p) => p.kind.id === kind.id).length;
+    const prop = { key: `${kind.id}-${Date.now()}`, kind, x: kind.at[0] + twins * 0.06, y: kind.at[1] + twins * 0.04, size: 0.26 };
+    onPlaced([...placed, prop]);
+    setSelected(prop.key);
+  };
+  const move = (key: string, x: number, y: number) =>
+    onPlaced(placed.map((p) => (p.key === key ? { ...p, x: clamp(x), y: clamp(y) } : p)));
+  const remove = (key: string) => onPlaced(placed.filter((p) => p.key !== key));
+
+  // The screenshot is the 3D view as it stands right now (angle + stuck-on props); it drives the remix.
+  const remix = async () => {
+    if (!viewer.current || capturing) return;
+    setCapturing(true);
+    setSelected(null);
     try {
-      const [shot] = await Promise.all([viewer.current.capture(), flash.fire()]);
-      onFrozen(shot);
+      const [shot] = await Promise.all([
+        viewer.current.capture(placed.map((p) => ({ svg: p.kind.svg, x: p.x, y: p.y, size: p.size }))),
+        flash.fire(),
+      ]);
+      await onRemix(shot);
     } catch (error) {
       showError(error);
     } finally {
-      setFreezing(false);
+      setCapturing(false);
     }
   };
 
   return (
     <Enter>
-      <View style={styles.pad}>
-        <TopBar left={{ label: closeLabel, onPress: onClose }} name={other.name} color={other.color} label={`From ${other.name}`} step={0} />
-        <Title sub={relay ? `${other.name} remixed it and sent it back. Your turn!` : `Spin ${other.name}'s gift. Freeze the view you want to remix.`}>
-          Find a good angle
-        </Title>
-        <View style={[styles.stageCard, { height: stageHeight, marginTop: s(16) }]}>
-          <StageBackdrop width={stageWidth} height={stageHeight} />
+      <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
+        <View style={styles.composeHead}>
+          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} style={styles.headSide}>
+            <BodyText size={16} weight="bold">{closeLabel}</BodyText>
+          </Pressable>
+          <HandText size={28} accessibilityRole="header" numberOfLines={1} style={styles.headTitle}>
+            {`Remix ${other.name}'s gift`}
+          </HandText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Undo the last prop"
+            accessibilityState={{ disabled: placed.length === 0 }}
+            disabled={placed.length === 0}
+            onPress={() => onPlaced(placed.slice(0, -1))}
+            hitSlop={10}
+            style={[styles.headSide, styles.headRight, placed.length === 0 && styles.disabled]}
+          >
+            <BodyText size={16} weight="bold">Undo</BodyText>
+          </Pressable>
+        </View>
+        {box.senderNote ? (
+          <View style={styles.noteRow}>
+            <Avatar name={other.name} color={other.color} size={30} />
+            <Bubble size={20} tail="bottomLeft" style={styles.noteBubble}>{`“${box.senderNote}”`}</Bubble>
+          </View>
+        ) : null}
+        <View
+          style={[styles.stageCard, { height: s(340), marginTop: s(12) }]}
+          onLayout={(e) => setStage({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+        >
+          {stage.width > 0 ? <StageBackdrop width={stage.width} height={stage.height} /> : null}
           {box.modelUrl ? (
-            <ModelViewer
-              ref={viewer}
-              modelUrl={box.modelUrl}
-              initialPose={box.cameraPose}
-              onLoaded={() => setLoaded(true)}
-              style={StyleSheet.absoluteFill}
-            />
+            <ModelViewer ref={viewer} modelUrl={box.modelUrl} initialPose={box.cameraPose} onLoaded={() => setLoaded(true)} style={StyleSheet.absoluteFill} />
           ) : (
             <View style={styles.centerFill}>
               <BodyText weight="bold" color={colors.muted}>The 3D model isn't ready yet.</BodyText>
             </View>
           )}
-          <ViewfinderCorners />
-          <Chip label="↻ Drag to spin" style={styles.stageChip} />
+          {stage.width > 0
+            ? placed.map((p) => (
+                <StuckProp
+                  key={p.key}
+                  prop={p}
+                  stage={stage}
+                  selected={selected === p.key}
+                  onSelect={() => setSelected(p.key)}
+                  onMove={(x, y) => move(p.key, x, y)}
+                  onRemove={() => remove(p.key)}
+                />
+              ))
+            : null}
+          <Chip label="3D · drag to spin" style={styles.stageChipTop} />
+          {box.modelUrl ? <Chip label="AR" onPress={() => openRealAR(box.modelUrl, box.modelUsdzUrl)} style={styles.arChip} /> : null}
           <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.flash, { opacity: flash.opacity }]} />
         </View>
-        <View style={styles.shutterWrap}>
-          <Shutter onPress={freeze} disabled={!loaded || freezing} />
-          <BodyText size={14} weight="heavy">{freezing ? "Freezing…" : "Freeze this angle"}</BodyText>
+
+        <View style={[styles.sectionHead, { marginTop: s(18) }]}>
+          <HandText size={24}>Add a prop</HandText>
+          <BodyText size={12} weight="bold" color={colors.muted}>tap to stick it on</BodyText>
         </View>
-      </View>
-      <View style={styles.flex} />
-      <BottomBar bottomInset={bottomInset}>
-        <View style={styles.boboHint}>
-          <TrottingBobo source={bobo.run} size={86} />
-          <Bubble size={20} tail="bottomLeft">Pick your fave side!</Bubble>
-        </View>
-      </BottomBar>
-    </Enter>
-  );
-}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tray} keyboardShouldPersistTaps="handled">
+          {PROPS.map((kind) => {
+            const on = placed.some((p) => p.kind.id === kind.id);
+            return (
+              <Pressable
+                key={kind.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Stick on a ${kind.label.toLowerCase()}`}
+                onPress={() => stick(kind)}
+                style={({ pressed }) => [styles.propTile, on && styles.propTileOn, pressed && styles.pressedTile]}
+              >
+                <SvgXml xml={kind.svg} width={40} height={40} />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
-function Shutter({ onPress, disabled }: { onPress: () => void; disabled: boolean }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Freeze this angle"
-      accessibilityState={{ disabled }}
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [styles.shutter, pressed && styles.shutterPressed, disabled && styles.disabled]}
-    >
-      <CameraGlyph />
-    </Pressable>
-  );
-}
-
-function CameraGlyph() {
-  return (
-    <Svg width={32} height={32} viewBox="0 0 32 32" fill="none" stroke={colors.ink} strokeWidth={3} strokeLinejoin="round" strokeLinecap="round">
-      <Path d="M5.2 10.4c7-.6 14.6-.5 21.6.1.8 4.6.9 9.6 0 14.4-7.2.5-14.4.6-21.6 0-.7-4.8-.8-9.6 0-14.5z" fill={colors.white} />
-      <Path d="M11 10.2l2.1-3.6h5.9l2 3.6" />
-      <Circle cx={16} cy={17.6} r={4.6} fill={colors.cream} />
-    </Svg>
-  );
-}
-
-function PromptStep({
-  box,
-  other,
-  snapshot,
-  extraPhoto,
-  onExtraPhoto,
-  prompt,
-  onPrompt,
-  onBack,
-  onSubmit,
-  busy,
-  bottomInset,
-}: {
-  box: BoxView;
-  other: Other;
-  snapshot: Snapshot;
-  extraPhoto: LocalImage | null;
-  onExtraPhoto: (photo: LocalImage | null) => void;
-  prompt: string;
-  onPrompt: (text: string) => void;
-  onBack: () => void;
-  onSubmit: () => void;
-  busy: boolean;
-  bottomInset: number;
-}) {
-  const { s } = useScale();
-  const { run } = useTask();
-  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  useScrollEndOnKeyboard(scroll);
-  const trimmed = prompt.trim();
-
-  const addPhoto = () =>
-    Alert.alert("Add a photo", "Mix something else into the remix.", [
-      { text: "Take a photo", onPress: () => run(async () => onExtraPhoto((await pickImage("camera")) ?? extraPhoto)) },
-      { text: "Choose from library", onPress: () => run(async () => onExtraPhoto((await pickImage("library")) ?? extraPhoto)) },
-      ...(extraPhoto ? [{ text: "Remove photo", style: "destructive" as const, onPress: () => onExtraPhoto(null) }] : []),
-      { text: "Cancel", style: "cancel" as const },
-    ]);
-
-  return (
-    <Enter>
-      <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
-        <TopBar left={{ label: "Back", onPress: onBack }} name={other.name} color={other.color} label={`From ${other.name}`} step={1} />
-        <Title sub="One sentence. Bobo does the rest.">What should it become?</Title>
-        <View style={[styles.photoRow, { marginTop: s(18) }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Change the angle" onPress={onBack}>
-            <Polaroid uri={`data:image/png;base64,${snapshot.pngBase64}`} caption="your angle" size={s(140)} rotate={-4} />
-          </Pressable>
-          <View style={styles.extraCol}>
-            <Pressable accessibilityRole="button" accessibilityLabel={extraPhoto ? "Change the extra photo" : "Add a photo, optional"} onPress={addPhoto}>
-              {extraPhoto ? (
-                <Polaroid uri={extraPhoto.uri} caption="+ this" size={s(92)} rotate={4} />
-              ) : (
-                <View style={[styles.addTile, { width: s(108), height: s(108) }]}>
-                  <Text style={styles.addPlus}>+</Text>
-                  <BodyText size={12} weight="heavy" color={colors.muted}>Add a photo</BodyText>
-                  <BodyText size={11} weight="bold" color={colors.muted}>optional</BodyText>
-                </View>
-              )}
-            </Pressable>
-            <BodyText size={12} weight="bold" color={colors.muted} style={styles.extraHint}>
-              Mix in something else, like your cat.
-            </BodyText>
-          </View>
-        </View>
-        <RoughCard style={[styles.promptCard, { marginTop: s(18) }]} seed={11}>
+        <HandText size={24} style={{ marginTop: s(18) }}>Or remix it in one line</HandText>
+        <RoughCard style={styles.lineCard} seed={11}>
           <TextInput
             value={prompt}
             onChangeText={onPrompt}
             placeholder={`Turn ${other.name}'s gift into…`}
             placeholderTextColor={colors.muted}
-            multiline
             maxLength={200}
-            style={styles.promptInput}
+            returnKeyType="done"
+            style={styles.lineInput}
             accessibilityLabel="Remix prompt"
           />
-          <BodyText size={12} weight="bold" color={colors.muted} style={styles.counter}>
-            {prompt.length}/200
-          </BodyText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Surprise me"
+            onPress={() => onPrompt(SUGGESTIONS[Math.floor(Math.random() * SUGGESTIONS.length)])}
+            hitSlop={6}
+            style={styles.magic}
+          >
+            <Sparkle size={22} color={colors.sun} />
+          </Pressable>
         </RoughCard>
         <View style={styles.suggestions}>
-          {SUGGESTIONS.map((text) => (
+          {SUGGESTIONS.slice(0, 3).map((text) => (
             <Chip key={text} label={text} onPress={() => onPrompt(text)} active={trimmed === text} style={trimmed === text ? styles.suggestionActive : styles.suggestion} />
           ))}
         </View>
@@ -410,14 +366,66 @@ function PromptStep({
         ) : null}
       </ScrollView>
       <BottomBar bottomInset={bottomInset}>
-        <View style={styles.actionRow}>
-          <View style={styles.boboSlot}>
-            <TrottingBobo source={bobo.run} size={96} />
-          </View>
-          <Button title={busy ? "Packing…" : "Remix it ✨"} busy={busy} disabled={trimmed.length === 0} onPress={onSubmit} style={styles.flexButton} />
-        </View>
+        <Button title={capturing ? "Snapping…" : "Remix it and seal the box"} busy={capturing} disabled={!ready} onPress={remix} />
       </BottomBar>
     </Enter>
+  );
+}
+
+const clamp = (n: number) => Math.min(0.95, Math.max(0.05, n));
+
+// A sticker on the stage: drag to move, tap to select, × to remove. Positions are fractions of the stage.
+function StuckProp({
+  prop,
+  stage,
+  selected,
+  onSelect,
+  onMove,
+  onRemove,
+}: {
+  prop: PlacedProp;
+  stage: { width: number; height: number };
+  selected: boolean;
+  onSelect: () => void;
+  onMove: (x: number, y: number) => void;
+  onRemove: () => void;
+}) {
+  const side = prop.size * stage.width;
+  const latest = useRef({ prop, stage, onSelect, onMove });
+  latest.current = { prop, stage, onSelect, onMove };
+  const start = useRef({ x: 0, y: 0 });
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        start.current = { x: latest.current.prop.x, y: latest.current.prop.y };
+        latest.current.onSelect();
+      },
+      onPanResponderMove: (_, g) => {
+        const { stage: st } = latest.current;
+        latest.current.onMove(start.current.x + g.dx / st.width, start.current.y + g.dy / st.height);
+      },
+      onPanResponderTerminationRequest: () => false,
+    }),
+  ).current;
+
+  return (
+    <View
+      {...pan.panHandlers}
+      accessibilityLabel={`${prop.kind.label} sticker`}
+      style={[
+        styles.stuck,
+        { width: side, height: side, left: prop.x * stage.width - side / 2, top: prop.y * stage.height - side / 2 },
+        selected && styles.stuckSelected,
+      ]}
+    >
+      <SvgXml xml={prop.kind.svg} width="100%" height="100%" />
+      {selected ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Remove the ${prop.kind.label.toLowerCase()}`} onPress={onRemove} hitSlop={8} style={styles.stuckRemove}>
+          <Text style={styles.stuckRemoveText}>×</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -427,6 +435,7 @@ function EditingStep({
   editedImageUri,
   extraPhotoUri,
   prompt,
+  autoSeal,
   onClose,
 }: {
   other: Other;
@@ -434,6 +443,7 @@ function EditingStep({
   editedImageUri?: string;
   extraPhotoUri?: string;
   prompt: string;
+  autoSeal: boolean;
   onClose: () => void;
 }) {
   const { s } = useScale();
@@ -450,7 +460,15 @@ function EditingStep({
     <Enter>
       <View style={styles.pad}>
         <TopBar left={{ label: "Close", onPress: onClose }} name={other.name} color={other.color} label={`For ${other.name}`} step={1} />
-        <Title sub={editedImageUri ? "The picture is ready. Now Bobo is shaping it in 3D." : "Usually under a minute. You can leave, Bobo keeps going."}>
+        <Title
+          sub={
+            autoSeal
+              ? `You can leave. Bobo seals the box and sends it to ${other.name} when the 3D is done.`
+              : editedImageUri
+                ? "The picture is ready. Now Bobo is shaping it in 3D."
+                : "Usually under a minute. You can leave, Bobo keeps going."
+          }
+        >
           Bobo is remixing…
         </Title>
       </View>
@@ -549,6 +567,9 @@ function ResultStep({
         </View>
       </ScrollView>
       <BottomBar bottomInset={bottomInset}>
+        {box.editedModelUrl ? (
+          <Button kind="secondary" title="Take a photo with it" onPress={() => router.push(`/photo/${box._id}`)} style={styles.photoButton} />
+        ) : null}
         <View style={styles.actionRow}>
           <View style={styles.boboSlot}>
             <TrottingBobo source={bobo.hold} size={96} period={1000} lift={5} />
@@ -601,6 +622,48 @@ function StageGround({ width }: { width: number }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
+  composeHead: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  headSide: { width: 56, height: 44, justifyContent: "center" },
+  headRight: { alignItems: "flex-end" },
+  headTitle: { flex: 1, textAlign: "center" },
+  noteRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 6 },
+  noteBubble: { flexShrink: 1 },
+  stageChipTop: { position: "absolute", left: 12, top: 12 },
+  arChip: { position: "absolute", right: 12, top: 12 },
+  sectionHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  tray: { gap: 10, paddingVertical: 8, paddingRight: 8 },
+  propTile: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    borderWidth: stroke.width,
+    borderColor: colors.ink,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  propTileOn: { backgroundColor: colors.sun },
+  pressedTile: { transform: [{ scale: 0.94 }] },
+  stuck: { position: "absolute" },
+  stuckSelected: { borderWidth: 2, borderStyle: "dashed", borderColor: colors.ink, borderRadius: 6 },
+  stuckRemove: {
+    position: "absolute",
+    right: -12,
+    top: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.ink,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stuckRemoveText: { fontFamily: fonts.heavy, fontSize: 15, lineHeight: 17, color: colors.ink },
+  lineCard: { marginTop: 8, paddingVertical: 6, paddingLeft: 16, paddingRight: 8, flexDirection: "row", alignItems: "center", gap: 8 },
+  lineInput: { flex: 1, fontFamily: fonts.hand, fontSize: 24, lineHeight: 28, color: colors.ink, paddingVertical: 8 },
+  magic: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" },
+  photoButton: { marginBottom: 8 },
   flex: { flex: 1 },
   pad: { paddingHorizontal: 18, paddingBottom: 12 },
   topBar: { height: 44 },
@@ -615,40 +678,7 @@ const styles = StyleSheet.create({
   centerFill: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", padding: 24 },
   stageChip: { position: "absolute", left: 12, bottom: 12 },
   flash: { backgroundColor: colors.white },
-  shutterWrap: { marginTop: 20, alignItems: "center", gap: 8 },
-  shutter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 3,
-    borderColor: colors.ink,
-    backgroundColor: colors.sun,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-  },
-  shutterPressed: { transform: [{ translateY: 3 }], shadowOffset: { width: 0, height: 1 } },
   disabled: { opacity: 0.4 },
-  boboHint: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  photoRow: { flexDirection: "row", gap: 16, alignItems: "flex-start", paddingHorizontal: 4 },
-  extraCol: { flex: 1, gap: 10, paddingTop: 8 },
-  addTile: {
-    borderWidth: stroke.width,
-    borderStyle: "dashed",
-    borderColor: colors.ink,
-    borderRadius: radii.row,
-    alignItems: "center",
-    justifyContent: "center",
-    transform: [{ rotate: "3deg" }],
-  },
-  addPlus: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 32, color: colors.ink },
-  extraHint: { lineHeight: 16 },
-  promptCard: { padding: 16, paddingBottom: 10 },
-  promptInput: { fontFamily: fonts.hand, fontSize: 26, lineHeight: 28, color: colors.ink, minHeight: 84, textAlignVertical: "top", padding: 0 },
-  counter: { textAlign: "right" },
   suggestions: { flexDirection: "row", flexWrap: "wrap", marginTop: 12, gap: 8 },
   suggestion: { backgroundColor: colors.cream, paddingVertical: 6, paddingHorizontal: 12 },
   suggestionActive: { backgroundColor: colors.ink, paddingVertical: 6, paddingHorizontal: 12 },

@@ -40,6 +40,7 @@ function Routes() {
       <Stack.Protected guard={profile !== null}>
         <Stack.Screen name="new" options={{ title: "Send a box" }} />
         <Stack.Screen name="claim" options={{ title: "Enter a box code" }} />
+        <Stack.Screen name="c/[code]" options={{ headerShown: false }} />
         <Stack.Screen name="box/[id]" options={{ title: "Box" }} />
         <Stack.Screen name="arrived/[id]" options={{ headerShown: false, animation: "fade" }} />
       </Stack.Protected>

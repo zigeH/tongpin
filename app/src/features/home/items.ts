@@ -31,12 +31,19 @@ export function toHomeItems(inbox: { received: InboxItem[]; sent: BoxView[] }): 
         ...base,
         color: colors.croc,
         title: relay ? `Remix ${box.senderNickname}'s box back` : `${box.senderNickname} sent you a box`,
-        subtitle: box.status === "editing" ? "Bobo is working on your remix" : box.status === "edited" ? "Remix ready to seal" : "Waiting for your remix",
+        subtitle:
+          box.status === "editing"
+            ? box.autoSeal
+              ? "Bobo is remixing, then it's sealed"
+              : "Bobo is working on your remix"
+            : box.status === "edited"
+              ? "Remix ready to seal"
+              : "Waiting for your remix",
         trailing: { kind: "label", text: "Remix" },
         route: "box",
       };
     }
-    return { ...base, color: colors.croc, title: `${box.senderNickname} sent you a box`, subtitle: "Take it to start remixing", trailing: { kind: "label", text: "Take" }, route: "box" };
+    return { ...base, color: colors.croc, title: `${box.senderNickname} sent you a box`, subtitle: "Waiting for your remix", trailing: { kind: "label", text: "Remix" }, route: "box" };
   });
   const sent = inbox.sent
     .filter((box) => !receivedIds.has(box._id))

@@ -14,6 +14,8 @@ async function assertImageType(ctx: MutationCtx, storageId: Id<"_storage">, allo
   }
 }
 
+const MAX_PROPS = 8;
+
 const isVec3 = (xs: number[]) => xs.length === 3 && xs.every(Number.isFinite);
 
 export const submitEdit = mutation({
@@ -25,6 +27,8 @@ export const submitEdit = mutation({
     cameraPose,
     prompt: v.string(),
     extraPhotoStorageId: v.optional(v.id("_storage")),
+    props: v.optional(v.array(v.string())),
+    seal: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const box = await ctx.db.get(args.boxId);
@@ -33,8 +37,12 @@ export const submitEdit = mutation({
     assertStatus(box, "claimed", "edited");
 
     const prompt = args.prompt.trim();
+    const props = (args.props ?? []).map((p) => p.trim());
+    if (props.length > MAX_PROPS || props.some((p) => p.length < 1 || p.length > 40)) {
+      fail("INVALID_INPUT", `props 最多 ${MAX_PROPS} 个，每个 1–40 字`);
+    }
     const length = [...prompt].length;
-    if (length < 1 || length > 200) fail("INVALID_INPUT", "prompt 需要 1–200 字");
+    if (length > 200 || (length < 1 && props.length === 0)) fail("INVALID_INPUT", "prompt 需要 1–200 字（贴了道具时可以为空）");
     if (!isVec3(args.cameraPose.position) || !isVec3(args.cameraPose.target) || !Number.isFinite(args.cameraPose.fov)) {
       fail("INVALID_INPUT", "cameraPose 的 position、target 必须是 3 个数字");
     }
@@ -50,6 +58,8 @@ export const submitEdit = mutation({
       cameraPose: args.cameraPose,
       prompt,
       extraPhotoId: args.extraPhotoStorageId,
+      props: props.length > 0 ? props : undefined,
+      autoSeal: args.seal === true ? true : undefined,
       editedImageId: undefined,
       editedModelId: undefined,
       editError: undefined,
