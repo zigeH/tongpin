@@ -140,7 +140,7 @@ describe("boxes.inbox", () => {
     return { ...s, a, b, ids };
   }
 
-  test("B: ready reply box → claim, claimed/editing/edited → edit", async () => {
+  test("B: ready reply box → claim, claimed/editing/edited → edit, sealed (A not opened yet) → photo", async () => {
     const { t, b, ids } = await inboxFixture();
     const { received, sent } = await t.query(api.boxes.inbox, { userId: b });
     const actions = Object.fromEntries(received.map((r) => [r._id, r.action]));
@@ -149,6 +149,7 @@ describe("boxes.inbox", () => {
       [ids.ab_claimed]: "edit",
       [ids.ab_editing]: "edit",
       [ids.ab_edited]: "edit",
+      [ids.ab_sealed]: "photo",
     });
     expect(sent).toEqual([]);
   });

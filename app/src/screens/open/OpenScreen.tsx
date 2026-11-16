@@ -18,6 +18,7 @@ import { BigBang, TAP, elapsed } from "./BigBang";
 import { colors as C, DESIGN_WIDTH as CANVAS_WIDTH, fonts as F, radii } from "../../theme";
 import { Button, NamePill, RoughCard } from "../../components/ui";
 import { T, ease, track } from "./timeline";
+import { PhotoStrip } from "../photo/PhotoStrip";
 
 // How long the edited picture stays over the 3D viewer after it mounts, until the viewer reports loading.
 
@@ -167,6 +168,7 @@ export function OpenScreen({ box }: { box: BoxView }) {
                 {remixer}'s remix: {view.prompt}
               </Text>
             ) : null}
+            {phase === "opened" ? <PhotoStrip boxId={view._id} size={64} /> : null}
             <Button title="Remix it and send it back" busy={busy} onPress={sendBack} style={styles.primary} />
             <View style={styles.links}>
               <Button kind="ghost" title="Take a photo with it" onPress={() => router.push(`/photo/${view._id}`)} />

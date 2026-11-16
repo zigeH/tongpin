@@ -31,9 +31,28 @@ describe("开盒合影 boxes.saveShot / boxes.shots", () => {
     const s = await setup();
     await s.t.mutation(api.boxes.saveShot, { boxId: s.boxId, userId: s.b, imageStorageId: s.shot });
     await s.t.mutation(api.boxes.saveShot, { boxId: s.boxId, userId: s.a, imageStorageId: s.shot });
-    const list = await s.t.query(api.boxes.shots, { boxId: s.boxId });
+    const list = await s.t.query(api.boxes.shots, { boxId: s.boxId, viewerId: s.a });
     expect(list.map((x) => x.nickname)).toEqual(["A", "B"]);
     expect(list[0].url).toMatch(/^https?:\/\//);
+  });
+
+  test("改造者封箱后拍的合影：寄件人开盒前看不到，开盒后看得到；改造者一直看得到", async () => {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      const edited = await ctx.storage.store(new Blob([GLB], { type: "model/gltf-binary" }));
+      await ctx.db.patch(s.boxId, { status: "sealed", editedModelId: edited });
+    });
+    await s.t.mutation(api.boxes.saveShot, { boxId: s.boxId, userId: s.b, imageStorageId: s.shot });
+    await s.t.mutation(api.boxes.saveShot, { boxId: s.boxId, userId: s.a, imageStorageId: s.shot });
+
+    const beforeOpen = await s.t.query(api.boxes.shots, { boxId: s.boxId, viewerId: s.a });
+    expect(beforeOpen.map((x) => x.nickname)).toEqual(["A"]);
+    const remixerView = await s.t.query(api.boxes.shots, { boxId: s.boxId, viewerId: s.b });
+    expect(remixerView.map((x) => x.nickname)).toEqual(["A", "B"]);
+
+    await s.t.mutation(api.boxes.open, { boxId: s.boxId, userId: s.a });
+    const afterOpen = await s.t.query(api.boxes.shots, { boxId: s.boxId, viewerId: s.a });
+    expect(afterOpen.map((x) => x.nickname)).toEqual(["A", "B"]);
   });
 
   test("旁人不能存；没 3D 的盒子不能存；非图片不能存", async () => {

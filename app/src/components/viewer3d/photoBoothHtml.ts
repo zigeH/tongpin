@@ -1,13 +1,16 @@
 // 开盒合影页：WebView 里直接开后置摄像头当背景，3D 叠在上面，拍照时在页面里合成一张 JPEG。
 // 不用 expo-camera（新原生模块会让 EAS 热更新崩），只靠 WKWebView 的 getUserMedia。
 // 手势：单指拖动 = 在地面上移动（往上拖走远变小）；双指 = 缩放 + 旋转。
-// App → 页面：window.shoot() | window.setFur(on) | window.setExposure(v) | window.resetModel()
+// 相机：默认前置（自拍合影），window.setFacing("user" | "environment") 切换；前置画面镜像，拍出来的照片和取景一致。
+// App → 页面：window.shoot() | window.setFur(on) | window.setExposure(v) | window.resetModel() | window.setFacing(f)
 // 页面 → App：{type:"loaded"} | {type:"camera", ok, message?} | {type:"shot", jpeg} | {type:"error", message}
 import { PHOTO_EXPOSURE, PLUSH_JS } from "./plushJs";
 
 const THREE_VERSION = "0.187.0";
 
-export function photoBoothHtml(modelUrl: string, options: { exposure?: number; fur?: boolean } = {}): string {
+export type CameraFacing = "user" | "environment";
+
+export function photoBoothHtml(modelUrl: string, options: { exposure?: number; fur?: boolean; facing?: CameraFacing } = {}): string {
   const exposure = options.exposure ?? PHOTO_EXPOSURE;
   return `<!doctype html>
 <html>
@@ -17,6 +20,7 @@ export function photoBoothHtml(modelUrl: string, options: { exposure?: number; f
   html, body { margin: 0; height: 100%; background: #2a1c12; overflow: hidden; touch-action: none;
                -webkit-user-select: none; -webkit-touch-callout: none; }
   video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  video.mirror { transform: scaleX(-1); }
   canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
 </style>
 <script type="importmap">
@@ -40,19 +44,24 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 const MODEL_URL = ${JSON.stringify(modelUrl)};
 const EXPOSURE = ${JSON.stringify(exposure)};
 let furOn = ${options.fur === false ? "false" : "true"};
+let facing = ${JSON.stringify(options.facing ?? "user")};
 
-// ---- 后置摄像头 ----
+// ---- 摄像头 ----
 const video = document.getElementById("v");
-(async () => {
+async function startCamera() {
+  if (video.srcObject) video.srcObject.getTracks().forEach((t) => t.stop());
+  video.classList.toggle("mirror", facing === "user");
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     video.srcObject = stream;
     await video.play().catch(() => {});
     post({ type: "camera", ok: true });
   } catch (e) {
     post({ type: "camera", ok: false, message: e && e.message ? e.message : String(e) });
   }
-})();
+}
+startCamera();
+window.setFacing = (f) => { if (f === facing) return; facing = f; startCamera(); };
 
 // ---- 3D ----
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -124,7 +133,10 @@ window.shoot = () => {
     const out = document.createElement("canvas"); out.width = W; out.height = H; const x = out.getContext("2d");
     if (video.videoWidth) {
       const s = Math.max(W / video.videoWidth, H / video.videoHeight), iw = video.videoWidth * s, ih = video.videoHeight * s;
+      x.save();
+      if (facing === "user") { x.translate(W, 0); x.scale(-1, 1); }
       x.drawImage(video, (W - iw) / 2, (H - ih) / 2, iw, ih);
+      x.restore();
     } else { x.fillStyle = "#efe3d0"; x.fillRect(0, 0, W, H); }
     x.drawImage(canvas, 0, 0, W, H);
     post({ type: "shot", jpeg: out.toDataURL("image/jpeg", 0.88) });

@@ -3,7 +3,7 @@
     "name": "一起搭",
     "slug": "tongpin-blindbox",
     "scheme": "tongpin",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -33,7 +33,16 @@
           "cameraPermission": "拍一样东西做成 3D 盲盒，或者和 3D 模型合影"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "选一张照片做成 3D 盲盒",
+          "savePhotosPermission": "把你和 3D 模型的合影存进相册",
+          "granularPermissions": ["photo"]
+        }
+      ],
+      "expo-sharing"
     ],
     "owner": "yueshuchens-team",
     "extra": {

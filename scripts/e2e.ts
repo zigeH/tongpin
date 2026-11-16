@@ -290,7 +290,7 @@ export function storySteps(client: ConvexHttpClient): Step<Ctx>[] {
       run: async (ctx) => {
         const imageStorageId = await upload("E2E_PHOTO");
         await client.mutation(api.boxes.saveShot, { boxId: ctx.boxId!, userId: ctx.userA!, imageStorageId });
-        const shots = await client.query(api.boxes.shots, { boxId: ctx.boxId! });
+        const shots = await client.query(api.boxes.shots, { boxId: ctx.boxId!, viewerId: ctx.userA! });
         check(shots.length === 1 && /^https?:\/\//.test(shots[0].url), `shots 返回不对：${JSON.stringify(shots)}`);
         const stranger = await client.mutation(api.users.register, { nickname: "e2e-路人" });
         await expectCode(client.mutation(api.boxes.saveShot, { boxId: ctx.boxId!, userId: stranger.userId, imageStorageId }), "NOT_RECEIVER");

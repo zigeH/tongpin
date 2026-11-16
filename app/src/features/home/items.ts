@@ -9,7 +9,7 @@ export type HomeItem = {
   title: string;
   subtitle: string;
   trailing: Trailing;
-  route: "arrived" | "box" | "invite";
+  route: "arrived" | "box" | "invite" | "photo";
   code: string;
   needsMe: boolean;
 };
@@ -18,12 +18,23 @@ export type HomeItem = {
 // 分享母盒（shared）显示成邀请卡片。
 export function toHomeItems(inbox: { received: InboxItem[]; sent: BoxView[] }): HomeItem[] {
   const receivedIds = new Set(inbox.received.map((b) => b._id));
-  const order = { open: 0, edit: 1, claim: 2 };
+  const order = { open: 0, edit: 1, claim: 2, photo: 3 };
   const received = [...inbox.received].sort((a, b) => order[a.action] - order[b.action]).map((box): HomeItem => {
     const base = { key: box._id, boxId: box._id, code: box.code, needsMe: true };
     if (box.action === "open") {
       const who = box.receiverNickname ?? "Someone";
       return { ...base, color: colors.orange, title: `${who} sent back your box`, subtitle: "Remixed and sealed", trailing: { kind: "dot" }, route: "arrived" };
+    }
+    if (box.action === "photo") {
+      return {
+        ...base,
+        needsMe: false,
+        color: colors.orange,
+        title: `Your remix for ${box.senderNickname} is sealed`,
+        subtitle: "Take a photo with it before they open it",
+        trailing: { kind: "label", text: "Photo" },
+        route: "photo",
+      };
     }
     if (box.action === "edit") {
       const relay = box.replyTo !== undefined;

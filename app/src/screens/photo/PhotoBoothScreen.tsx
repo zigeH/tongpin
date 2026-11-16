@@ -1,34 +1,26 @@
-import { useMutation } from "convex/react";
 import { Stack, router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { api, type BoxView } from "../../lib/backend";
-import { useProfile } from "../../lib/session";
+import type { BoxView } from "../../lib/backend";
 import { openRealAR } from "../../lib/ar";
-import { useUpload } from "../../lib/upload";
-import { useTask } from "../../lib/useTask";
-import { photoBoothHtml } from "../../components/viewer3d/photoBoothHtml";
-import { colors as C, fonts as F } from "../../theme";
+import { photoBoothHtml, type CameraFacing } from "../../components/viewer3d/photoBoothHtml";
+import { colors as C, fonts as F, roughCircle, roughRect, stroke } from "../../theme";
+import { PhotoPreview } from "./PhotoPreview";
 
-// 开盒合影：相机画面 + 可拖动的 3D，拍照合成后存回盒子（做法 1）。
-// 右上角"Real AR"打开系统真 AR（做法 2：iOS AR Quick Look / Android Scene Viewer），照片进系统相册。
+// 和 3D 合影：相机画面 + 可拖动/缩放/旋转的 3D，拍照合成后进预览（重拍 / 存相册 / 分享 / 放进盒子）。
+// 默认前置镜头（自拍和改后的 3D 合影），可切后置；右上角"Real AR"打开系统真 AR（iOS AR Quick Look / Android Scene Viewer）。
 type Msg =
   | { type: "loaded" }
   | { type: "camera"; ok: boolean; message?: string }
   | { type: "shot"; jpeg: string }
   | { type: "error"; message: string };
 
-const JPEG_PREFIX = "data:image/jpeg;base64,";
-
 export function PhotoBoothScreen({ box }: { box: BoxView }) {
-  const { userId } = useProfile();
   const insets = useSafeAreaInsets();
   const web = useRef<WebView<object>>(null);
-  const saveShot = useMutation(api.boxes.saveShot);
-  const { uploadBase64 } = useUpload();
-  const { busy, run } = useTask();
 
   // 改造过就和改后的 3D 合影，否则用原版
   const modelUrl = box.editedModelUrl ?? box.modelUrl;
@@ -39,27 +31,24 @@ export function PhotoBoothScreen({ box }: { box: BoxView }) {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [shot, setShot] = useState<string | null>(null);
   const [fur, setFur] = useState(true);
+  const [facing, setFacing] = useState<CameraFacing>("user");
 
   const onMessage = (e: WebViewMessageEvent) => {
     let m: Msg;
     try { m = JSON.parse(e.nativeEvent.data) as Msg; } catch { return; }
     if (m.type === "loaded") setLoaded(true);
-    if (m.type === "camera" && !m.ok) setCameraError(m.message ?? "Camera unavailable");
+    if (m.type === "camera") setCameraError(m.ok ? null : (m.message ?? "Camera unavailable"));
     if (m.type === "shot") setShot(m.jpeg);
     if (m.type === "error") console.warn("[photo-booth]", m.message);
   };
 
   const js = (code: string) => web.current?.injectJavaScript(`${code}; true;`);
 
-
-  const keep = () =>
-    run(async () => {
-      if (!shot) return;
-      const storageId = await uploadBase64(shot.slice(JPEG_PREFIX.length), "image/jpeg");
-      await saveShot({ boxId: box._id, userId, imageStorageId: storageId });
-      setShot(null);
-      router.back();
-    });
+  const flip = () => {
+    const next = facing === "user" ? "environment" : "user";
+    js(`window.setFacing(${JSON.stringify(next)})`);
+    setFacing(next);
+  };
 
   if (!modelUrl) {
     return (
@@ -89,11 +78,12 @@ export function PhotoBoothScreen({ box }: { box: BoxView }) {
 
       {!loaded ? (
         <View style={[styles.fill, styles.center]} pointerEvents="none">
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={C.paper} />
+          <Text style={styles.msg}>Bringing the remix over…</Text>
         </View>
       ) : null}
       {cameraError ? (
-        <View style={[styles.banner, { top: insets.top + 64 }]} pointerEvents="none">
+        <View style={[styles.banner, { top: insets.top + 110 }]} pointerEvents="none">
           <Text style={styles.bannerText}>Camera unavailable: {cameraError}</Text>
         </View>
       ) : null}
@@ -105,9 +95,12 @@ export function PhotoBoothScreen({ box }: { box: BoxView }) {
           <Pill label="Real AR" onPress={() => openRealAR(modelUrl, usdzUrl)} />
         </View>
       </View>
-      <Text style={[styles.hint, { top: insets.top + 64 }]} pointerEvents="none">
-        {cameraError ? "" : "Drag to place · pinch to resize & turn"}
-      </Text>
+      {cameraError ? null : (
+        <View style={[styles.hintWrap, { top: insets.top + 66 }]} pointerEvents="none">
+          <Text style={styles.hintTitle}>Strike a pose with it!</Text>
+          <Text style={styles.hint}>Drag to place · pinch to resize & turn</Text>
+        </View>
+      )}
 
       <View style={[styles.shutterRow, { bottom: insets.bottom + 24 }]} pointerEvents="box-none">
         <Pill label="Reset" onPress={() => js("window.resetModel()")} />
@@ -116,45 +109,53 @@ export function PhotoBoothScreen({ box }: { box: BoxView }) {
           accessibilityLabel="Take photo"
           disabled={!loaded}
           onPress={() => js("window.shoot()")}
-          style={({ pressed }) => [styles.shutter, (!loaded || pressed) && { opacity: 0.6 }]}
-        />
-        <View style={{ width: 72 }} />
+          style={({ pressed }) => [(!loaded || pressed) && { opacity: 0.6, transform: [{ scale: 0.95 }] }]}
+        >
+          <Svg width={84} height={84}>
+            <Path d={roughCircle(42, 42, 38, { seed: 5 })} fill={C.white} stroke={C.ink} strokeWidth={stroke.icon} />
+            <Path d={roughCircle(42, 42, 28, { seed: 9 })} fill={C.orange} stroke={C.ink} strokeWidth={stroke.width} />
+          </Svg>
+        </Pressable>
+        <Pill label={facing === "user" ? "Back cam" : "Selfie"} onPress={flip} accessibilityLabel="Switch camera" />
       </View>
 
-      {shot ? (
-        <View style={[styles.fill, styles.preview]}>
-          <Image source={{ uri: shot }} style={styles.fill} resizeMode="cover" />
-          <View style={[styles.shutterRow, { bottom: insets.bottom + 24 }]}>
-            <Pill label="Retake" onPress={() => setShot(null)} />
-            <Pill label={busy ? "Saving…" : "Keep in the box"} primary onPress={keep} />
-          </View>
-        </View>
-      ) : null}
+      {shot ? <PhotoPreview box={box} jpeg={shot} onRetake={() => setShot(null)} onDone={() => router.back()} /> : null}
     </View>
   );
 }
 
-function Pill({ label, onPress, primary }: { label: string; onPress: () => void; primary?: boolean }) {
+function Pill({ label, onPress, accessibilityLabel }: { label: string; onPress: () => void; accessibilityLabel?: string }) {
+  const [w, setW] = useState(0);
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.pill, primary && styles.pillPrimary, pressed && { opacity: 0.8 }]}>
-      <Text style={[styles.pillText, primary && { color: "#fff" }]}>{label}</Text>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      onPress={onPress}
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      style={({ pressed }) => [styles.pill, pressed && { opacity: 0.8 }]}
+    >
+      {w ? (
+        <Svg width={w} height={44} style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Path d={roughRect(w, 44, 22, { seed: label.length + 2, inset: 2 })} fill={C.paper} stroke={C.ink} strokeWidth={stroke.width} />
+        </Svg>
+      ) : null}
+      <Text style={styles.pillText}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   fill: StyleSheet.absoluteFill,
-  center: { alignItems: "center", justifyContent: "center", backgroundColor: "#2a1c12" },
-  msg: { color: "#f3e2cc", fontSize: 16 },
+  center: { alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: C.ink },
+  msg: { color: C.paper, fontSize: 16, fontFamily: F.bold },
   row: { flexDirection: "row", gap: 8 },
   topRow: { position: "absolute", left: 14, right: 14, flexDirection: "row", justifyContent: "space-between" },
-  hint: { position: "absolute", alignSelf: "center", color: "#fff", fontSize: 14, fontWeight: "600", textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 4 },
-  banner: { position: "absolute", left: 20, right: 20, padding: 10, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },
-  bannerText: { color: "#fff", fontSize: 13 },
+  hintWrap: { position: "absolute", alignSelf: "center", alignItems: "center" },
+  hintTitle: { color: C.white, fontSize: 30, lineHeight: 32, fontFamily: F.hand, textShadowColor: "rgba(0,0,0,0.55)", textShadowRadius: 5 },
+  hint: { color: C.white, fontSize: 14, fontFamily: F.bold, textShadowColor: "rgba(0,0,0,0.55)", textShadowRadius: 4 },
+  banner: { position: "absolute", left: 20, right: 20, padding: 10, borderRadius: 14, borderWidth: 2, borderColor: C.ink, backgroundColor: C.cream },
+  bannerText: { color: C.ink, fontSize: 13, fontFamily: F.bold },
   shutterRow: { position: "absolute", left: 20, right: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  shutter: { width: 76, height: 76, borderRadius: 38, backgroundColor: "#fff", borderWidth: 6, borderColor: C.orange },
-  preview: { backgroundColor: "#000" },
-  pill: { minWidth: 72, height: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: "rgba(255,250,242,0.92)", alignItems: "center", justifyContent: "center" },
-  pillPrimary: { backgroundColor: C.orange },
-  pillText: { color: "#4a2a14", fontSize: 15, fontFamily: F.bold },
+  pill: { minWidth: 76, height: 44, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
+  pillText: { color: C.ink, fontSize: 15, fontFamily: F.heavy },
 });
