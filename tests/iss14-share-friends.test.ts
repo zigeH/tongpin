@@ -83,6 +83,20 @@ describe("boxes.share", () => {
     expect((await get(boxIds[0])).status).toBe("claimed");
   });
 
+  test("share card remix: the friend claims the shared copy, then submits the in-flow screenshot", async () => {
+    const { t, a, b, boxId, get } = await setup();
+    const { boxIds } = await t.mutation(api.boxes.share, { boxId, userId: a, receiverIds: [b] });
+    const copy = await get(boxIds[0]);
+    const snapshotStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["x"], { type: "image/png" })));
+    const pose = { position: [1, 1, 2], target: [0, 0, 0], fov: 45 };
+    const submit = () => t.mutation(api.boxes.submitEdit, { boxId: copy._id, userId: b, snapshotStorageId, cameraPose: pose, prompt: "make it gold" });
+
+    expect(await errorCode(submit())).toBe("WRONG_STATUS");
+    await t.mutation(api.boxes.claim, { code: copy.code, userId: b });
+    expect(await errorCode(submit())).toBeUndefined();
+    expect(await get(copy._id)).toMatchObject({ status: "editing", snapshotId: snapshotStorageId, cameraPose: pose, prompt: "make it gold" });
+  });
+
   test("empty receiverIds marks the box shared, keeps the old note when none given", async () => {
     const { t, a, boxId, get, count } = await setup();
     expect(await t.mutation(api.boxes.share, { boxId, userId: a, receiverIds: [] })).toEqual({ boxIds: [] });

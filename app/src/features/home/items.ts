@@ -25,18 +25,15 @@ export function toHomeItems(inbox: { received: InboxItem[]; sent: BoxView[] }): 
       const who = box.receiverNickname ?? "Someone";
       return { ...base, color: colors.orange, title: `${who} sent back your box`, subtitle: "Remixed and sealed", trailing: { kind: "dot" }, route: "arrived" };
     }
-    if (box.action === "edit") {
-      const relay = box.replyTo !== undefined;
-      return {
-        ...base,
-        color: colors.croc,
-        title: relay ? `Remix ${box.senderNickname}'s box back` : `${box.senderNickname} sent you a box`,
-        subtitle: box.status === "editing" ? "Bobo is working on your remix" : box.status === "edited" ? "Remix ready to seal" : "Waiting for your remix",
-        trailing: { kind: "label", text: "Remix" },
-        route: "box",
-      };
-    }
-    return { ...base, color: colors.croc, title: `${box.senderNickname} sent you a box`, subtitle: "Take it to start remixing", trailing: { kind: "label", text: "Take" }, route: "box" };
+    const relay = box.replyTo !== undefined;
+    return {
+      ...base,
+      color: colors.croc,
+      title: relay ? `Remix ${box.senderNickname}'s box back` : `${box.senderNickname} sent you a box`,
+      subtitle: box.status === "editing" ? "Bobo is working on your remix" : box.status === "edited" ? "Remix ready to seal" : "Waiting for your remix",
+      trailing: { kind: "label", text: "Remix" },
+      route: "box",
+    };
   });
   const sent = inbox.sent
     .filter((box) => !receivedIds.has(box._id))

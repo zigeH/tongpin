@@ -151,22 +151,6 @@ export function StageBackdrop({ width, height }: { width: number; height: number
   );
 }
 
-export function ViewfinderCorners({ inset = 14, bottomInset = 48 }: { inset?: number; bottomInset?: number }) {
-  const corner = (d: string, style: ViewStyle) => (
-    <Svg width={34} height={34} style={[styles.corner, style]} pointerEvents="none">
-      <Path d={d} stroke={colors.ink} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </Svg>
-  );
-  return (
-    <>
-      {corner("M2.5 13.5V3.2h10.6", { left: inset, top: inset })}
-      {corner("M31.5 13.5V2.8H20.6", { right: inset, top: inset })}
-      {corner("M2.5 20.5v10.6h10.8", { left: inset, bottom: bottomInset })}
-      {corner("M31.5 20.8v10.4H21", { right: inset, bottom: bottomInset })}
-    </>
-  );
-}
-
 // Bobo trotting in place (design .trot: 0.4s alternate, -7px, ±3deg).
 export function TrottingBobo({ source, size, period = 800, lift = 7 }: { source: ImageSourcePropType; size: number; period?: number; lift?: number }) {
   const t = useLoop(period);
@@ -241,5 +225,4 @@ const styles = StyleSheet.create({
   polaroidPhoto: { backgroundColor: STAGE_BG, borderRadius: 2, overflow: "hidden" },
   polaroidCaption: { fontFamily: fonts.hand, fontSize: 19, lineHeight: 24, color: colors.ink, textAlign: "center" },
   polaroidCaptionSmall: { fontFamily: fonts.heavy, fontSize: 9, lineHeight: 14 },
-  corner: { position: "absolute" },
 });

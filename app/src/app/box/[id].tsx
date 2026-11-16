@@ -13,7 +13,8 @@ import { ErrorBoundary as RouteErrorBoundary } from "../../features/RouteError";
 export const ErrorBoundary = RouteErrorBoundary;
 
 // 一个盒子一个页面：按"我是谁 + 盒子状态"决定显示哪一步。
-// 对应 inbox 的 action：claim → ClaimView，edit → EditView，open → OpenView。
+// 对应 inbox 的 action：好友直接分享给我的（claim/edit）→ EditView（分享卡片直接开始 remix），open → OpenView；
+// 只有拿着别人的盒子码进来的才走 ClaimView。
 export default function BoxScreen() {
   const { id } = useLocalSearchParams<{ id: Id<"boxes"> }>();
   const { userId } = useProfile();
@@ -22,7 +23,7 @@ export default function BoxScreen() {
 
   const title = <Stack.Screen options={{ title: `盒子 ${box.code}` }} />;
   const isSender = box.senderId === userId;
-  const isReceiver = box.receiverId === userId && box.status !== "ready";
+  const isReceiver = box.receiverId === userId;
 
   let body;
   if (isSender && (box.status === "sealed" || box.status === "opened")) body = <OpenView box={box} />;
